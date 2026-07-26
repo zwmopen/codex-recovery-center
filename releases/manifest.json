@@ -1,7 +1,7 @@
 {
   "project": "codex-recovery-center",
   "version": "1.0.0",
-  "source_commit": "pending-final-commit",
+  "source_commit": "9e157cd5c4dcb018c98e8b171aa8de2df7010c91",
   "artifacts": [
     {
       "file": "Codex-Recovery-Center.exe",
