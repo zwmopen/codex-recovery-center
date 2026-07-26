@@ -12,7 +12,7 @@ WinForms GUI
   │   ├─ 注册修复：RegisterByFamilyName + 12/30 秒轮询
   │   └─ 商店兜底：winget → msstore → 9PLM9XGG6VKS + 240 秒轮询
   ├─ ThemeManager / SettingsStore：视觉与偏好持久化
-  └─ UpdateService：Raw 清单 → Release 下载 → SHA-256 → 用户确认替换
+  └─ UpdateService：Latest Release 清单 → EXE 下载 → SHA-256 → 用户确认替换
 ```
 
 ## 关键文件
@@ -35,4 +35,4 @@ WinForms GUI
 
 程序使用系统自带 .NET Framework WinForms，发布文件不需要额外运行库。微软商店兜底依赖 Windows App Installer 提供的 `winget.exe`。
 
-更新服务不需要 GitHub Token。它读取仓库 Raw 清单，下载对应 GitHub Release 文件并核对 SHA-256；校验通过后仍由用户决定是否替换当前 EXE。
+更新服务不需要 GitHub Token。它读取最新 GitHub Release 随附的 `manifest.json`，下载同版本 EXE 并核对 SHA-256；校验通过后仍由用户决定是否替换当前 EXE。

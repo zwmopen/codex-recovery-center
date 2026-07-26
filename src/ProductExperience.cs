@@ -19,7 +19,7 @@ namespace CodexRecoveryCenter
         public const string RepositoryUrl = "https://github.com/zwmopen/codex-recovery-center";
         public const string ReleasesUrl = RepositoryUrl + "/releases";
         public const string UpdateManifestUrl =
-            "https://raw.githubusercontent.com/zwmopen/codex-recovery-center/main/releases/manifest.json";
+            "https://github.com/zwmopen/codex-recovery-center/releases/latest/download/manifest.json";
     }
 
     internal enum VisualTheme
