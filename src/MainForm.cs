@@ -34,7 +34,7 @@ namespace CodexRecoveryCenter
             MinimumSize = new Size(700, 520);
             StartPosition = FormStartPosition.CenterScreen;
             Font = new Font("Microsoft YaHei UI", 9F);
-            AutoScaleMode = AutoScaleMode.None;
+            AutoScaleMode = AutoScaleMode.Dpi;
             DoubleBuffered = true;
             TrySetIcon();
 
@@ -62,14 +62,12 @@ namespace CodexRecoveryCenter
             root.Controls.Add(header, 0, 0);
 
             var appTitle = MakeLabel("Codex 恢复中心", 0, 1, 16F, FontStyle.Bold, "title");
-            var identity = MakeLabel(
-                "WINDOWS · 独立恢复工具", 2, 32, 8F, FontStyle.Bold, "accent");
             var version = MakeLabel(
                 "v" + ProductInfo.Version, 0, 13, 8.5F, FontStyle.Regular, "muted");
             settingsButton = MakeButton("设置", 0, 4, 72, 36, ButtonVisualRole.Ghost);
             aboutButton = MakeButton("关于", 0, 4, 72, 36, ButtonVisualRole.Ghost);
             header.Controls.AddRange(new Control[]
-                { appTitle, identity, version, settingsButton, aboutButton });
+                { appTitle, version, settingsButton, aboutButton });
             header.Layout += (s, e) =>
             {
                 aboutButton.Left = header.ClientSize.Width - aboutButton.Width;

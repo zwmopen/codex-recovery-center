@@ -292,7 +292,9 @@ namespace CodexRecoveryCenter
             FlatAppearance.BorderSize = 0;
             Cursor = Cursors.Hand;
             SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
-                ControlStyles.OptimizedDoubleBuffer, true);
+                ControlStyles.OptimizedDoubleBuffer |
+                ControlStyles.SupportsTransparentBackColor, true);
+            BackColor = Color.Transparent;
         }
 
         protected override void OnMouseEnter(EventArgs e)
@@ -326,27 +328,16 @@ namespace CodexRecoveryCenter
 
         protected override void OnPaint(PaintEventArgs e)
         {
+            base.OnPaintBackground(e);
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-            e.Graphics.Clear(SurfaceColor);
-            Rectangle box = new Rectangle(4, 4, Math.Max(1, Width - 9), Math.Max(1, Height - 9));
+            Rectangle box = new Rectangle(1, 1, Math.Max(1, Width - 3), Math.Max(1, Height - 3));
             Color fill = pressed ? ControlPaint.Dark(FillColor, 0.03F) :
                 hovering ? HoverColor : FillColor;
             using (GraphicsPath path = Rounded(box, CornerRadius))
-            using (GraphicsPath lightPath = Rounded(
-                new Rectangle(box.X - 2, box.Y - 2, box.Width, box.Height), CornerRadius))
-            using (GraphicsPath darkPath = Rounded(
-                new Rectangle(box.X + 3, box.Y + 4, box.Width, box.Height), CornerRadius))
-            using (SolidBrush light = new SolidBrush(HighlightColor))
-            using (SolidBrush shadow = new SolidBrush(ShadowColor))
             using (SolidBrush brush = new SolidBrush(fill))
             using (Pen border = new Pen(Color.FromArgb(
-                VisualRole == ButtonVisualRole.Primary ? 80 : 130, 255, 255, 255)))
+                VisualRole == ButtonVisualRole.Primary ? 75 : 105, 255, 255, 255)))
             {
-                if (!pressed && VisualRole != ButtonVisualRole.Ghost)
-                {
-                    e.Graphics.FillPath(light, lightPath);
-                    e.Graphics.FillPath(shadow, darkPath);
-                }
                 e.Graphics.FillPath(brush, path);
                 if (VisualRole != ButtonVisualRole.Ghost)
                     e.Graphics.DrawPath(border, path);
@@ -354,7 +345,8 @@ namespace CodexRecoveryCenter
             TextRenderer.DrawText(e.Graphics, Text, Font, box, Enabled ? TextColor :
                 Color.FromArgb(156, 156, 150),
                 TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter |
-                TextFormatFlags.EndEllipsis);
+                TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding |
+                TextFormatFlags.PreserveGraphicsClipping);
         }
 
         private static GraphicsPath Rounded(Rectangle rectangle, int radius)
@@ -394,20 +386,12 @@ namespace CodexRecoveryCenter
         protected override void OnPaint(PaintEventArgs e)
         {
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-            Rectangle box = new Rectangle(9, 9, Math.Max(1, Width - 18), Math.Max(1, Height - 18));
+            Rectangle box = new Rectangle(3, 3, Math.Max(1, Width - 7), Math.Max(1, Height - 7));
             using (var path = SoftButtonRounded(box, CornerRadius))
-            using (var lightPath = SoftButtonRounded(
-                new Rectangle(box.X - 3, box.Y - 3, box.Width, box.Height), CornerRadius))
-            using (var darkPath = SoftButtonRounded(
-                new Rectangle(box.X + 6, box.Y + 7, box.Width, box.Height), CornerRadius))
-            using (var light = new SolidBrush(HighlightColor))
-            using (var shadow = new SolidBrush(ShadowColor))
             using (var fill = new SolidBrush(FillColor))
-            using (var pen = new Pen(Color.FromArgb(145, 255, 255, 255)))
-            using (var edge = new Pen(Color.FromArgb(80, BorderColor)))
+            using (var pen = new Pen(Color.FromArgb(118, 255, 255, 255)))
+            using (var edge = new Pen(Color.FromArgb(115, BorderColor)))
             {
-                e.Graphics.FillPath(light, lightPath);
-                e.Graphics.FillPath(shadow, darkPath);
                 e.Graphics.FillPath(fill, path);
                 e.Graphics.DrawPath(pen, path);
                 e.Graphics.DrawPath(edge, path);

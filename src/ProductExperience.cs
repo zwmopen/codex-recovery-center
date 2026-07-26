@@ -15,7 +15,7 @@ namespace CodexRecoveryCenter
 {
     internal static class ProductInfo
     {
-        public const string Version = "1.3.0";
+        public const string Version = "1.3.1";
         public const string RepositoryUrl = "https://github.com/zwmopen/codex-recovery-center";
         public const string ReleasesUrl = RepositoryUrl + "/releases";
         public const string UpdateManifestUrl =
@@ -88,21 +88,11 @@ namespace CodexRecoveryCenter
                         if (Enum.TryParse(value, true, out parsed))
                             settings.Theme = parsed;
                     }
-                    else if (key.Equals("AutoCheckUpdates", StringComparison.OrdinalIgnoreCase))
-                    {
-                        bool parsed;
-                        if (Boolean.TryParse(value, out parsed))
-                            settings.AutoCheckUpdates = parsed;
-                    }
-                    else if (key.Equals("AutoDownloadUpdates", StringComparison.OrdinalIgnoreCase))
-                    {
-                        bool parsed;
-                        if (Boolean.TryParse(value, out parsed))
-                            settings.AutoDownloadUpdates = parsed;
-                    }
                 }
             }
             catch { }
+            settings.AutoCheckUpdates = true;
+            settings.AutoDownloadUpdates = true;
             return settings;
         }
 
@@ -110,9 +100,7 @@ namespace CodexRecoveryCenter
         {
             string[] lines =
             {
-                "Theme=" + settings.Theme,
-                "AutoCheckUpdates=" + settings.AutoCheckUpdates,
-                "AutoDownloadUpdates=" + settings.AutoDownloadUpdates
+                "Theme=" + settings.Theme
             };
             File.WriteAllLines(SettingsPath, lines, Encoding.UTF8);
         }
@@ -299,6 +287,12 @@ namespace CodexRecoveryCenter
         {
             VisualTheme = VisualTheme.Neumorphic;
             DoubleBuffered = true;
+            try
+            {
+                Icon icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
+                if (icon != null) Icon = icon;
+            }
+            catch { }
         }
 
         protected override void OnPaintBackground(PaintEventArgs e)
@@ -483,8 +477,6 @@ namespace CodexRecoveryCenter
     {
         private readonly SoftButton neoThemeButton;
         private readonly SoftButton glassThemeButton;
-        private readonly CheckBox autoCheck;
-        private readonly CheckBox autoDownload;
         private readonly Label hint;
         private readonly SoftButton saveButton;
         private readonly SoftButton checkButton;
@@ -499,17 +491,15 @@ namespace CodexRecoveryCenter
             checkUpdates = check;
 
             Text = "设置 · Codex 恢复中心";
-            ClientSize = new Size(600, 490);
-            MinimumSize = new Size(560, 460);
+            ClientSize = new Size(600, 420);
+            MinimumSize = new Size(560, 400);
             StartPosition = FormStartPosition.CenterParent;
             Font = new Font("Microsoft YaHei UI", 10F);
             AutoScaleMode = AutoScaleMode.Dpi;
 
             var title = LabelAt("设置", 30, 25, 20F, FontStyle.Bold, null);
-            var description = LabelAt("主题、更新和本地偏好会在重启后保留。", 32, 65, 9.5F,
-                FontStyle.Regular, "muted");
 
-            var themeCard = CardAt(30, 105, 540, 126);
+            var themeCard = CardAt(30, 82, 540, 126);
             themeCard.Controls.Add(LabelAt("视觉语言", 20, 16, 11F, FontStyle.Bold, null));
             themeCard.Controls.Add(LabelAt("两套都是你的长期偏好，可随时原地切换。", 20, 45, 9F,
                 FontStyle.Regular, "muted"));
@@ -524,50 +514,34 @@ namespace CodexRecoveryCenter
             themeCard.Controls.Add(neoThemeButton);
             themeCard.Controls.Add(glassThemeButton);
 
-            var updateCard = CardAt(30, 247, 540, 140);
+            var updateCard = CardAt(30, 222, 540, 92);
             updateCard.Controls.Add(LabelAt("软件更新", 20, 15, 11F, FontStyle.Bold, null));
-            autoCheck = new CheckBox
-            {
-                Text = "启动时自动检查 GitHub 最新版本",
-                AutoSize = true,
-                Location = new Point(20, 48),
-                Checked = working.AutoCheckUpdates
-            };
-            autoDownload = new CheckBox
-            {
-                Text = "发现新版时自动下载（安装前仍会确认）",
-                AutoSize = true,
-                Location = new Point(20, 78),
-                Checked = working.AutoDownloadUpdates
-            };
-            updateCard.Controls.Add(autoCheck);
-            updateCard.Controls.Add(autoDownload);
-            checkButton = ButtonAt("立即检查更新", 374, 94, 146, 34, ButtonVisualRole.Secondary);
+            checkButton = ButtonAt("检查版本", 374, 43, 146, 36, ButtonVisualRole.Secondary);
             updateCard.Controls.Add(checkButton);
 
-            hint = LabelAt("设置保存在本机，不会同步到云端。", 32, 405, 9F,
+            hint = LabelAt("设置保存在本机，不会同步到云端。", 32, 329, 9F,
                 FontStyle.Regular, "muted");
-            saveButton = ButtonAt("保存设置", 420, 428, 150, 42, ButtonVisualRole.Primary);
-            var cancelButton = ButtonAt("取消", 314, 428, 92, 42, ButtonVisualRole.Ghost);
+            saveButton = ButtonAt("保存设置", 420, 355, 150, 42, ButtonVisualRole.Primary);
+            var cancelButton = ButtonAt("取消", 314, 355, 92, 42, ButtonVisualRole.Ghost);
 
             Controls.AddRange(new Control[]
-                { title, description, themeCard, updateCard, hint, saveButton, cancelButton });
+                { title, themeCard, updateCard, hint, saveButton, cancelButton });
 
             checkButton.Click += async (s, e) =>
             {
                 checkButton.Enabled = false;
-                checkButton.Text = "正在检查……";
+                checkButton.Text = "检查中……";
                 try { await checkUpdates(); }
                 finally
                 {
-                    checkButton.Text = "立即检查更新";
+                    checkButton.Text = "检查版本";
                     checkButton.Enabled = true;
                 }
             };
             saveButton.Click += (s, e) =>
             {
-                working.AutoCheckUpdates = autoCheck.Checked;
-                working.AutoDownloadUpdates = autoDownload.Checked;
+                working.AutoCheckUpdates = true;
+                working.AutoDownloadUpdates = true;
                 SettingsStore.Save(working);
                 applySettings(working.Clone());
                 DialogResult = DialogResult.OK;

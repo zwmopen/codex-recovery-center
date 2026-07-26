@@ -7,15 +7,19 @@ $sources = Get-ChildItem -LiteralPath (Join-Path $projectRoot 'src') -Filter '*.
 $build = Join-Path $projectRoot 'build'
 $release = Join-Path $projectRoot 'releases\Codex-Recovery-Center.exe'
 $compiler = 'C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe'
+$icon = Join-Path $build 'Codex-Recovery-Center.ico'
+$manifest = Join-Path $projectRoot 'assets\app.manifest'
 
 if (-not (Test-Path -LiteralPath $compiler)) {
     throw "C# compiler not found: $compiler"
 }
 
 New-Item -ItemType Directory -Path $build -Force | Out-Null
+& (Join-Path $PSScriptRoot 'GenerateIcon.ps1') -OutputPath $icon
 & $compiler /nologo /target:winexe /optimize+ /platform:x64 `
     /reference:System.dll /reference:System.Core.dll /reference:System.Drawing.dll `
     /reference:System.Windows.Forms.dll /reference:System.Web.Extensions.dll `
+    /win32icon:$icon /win32manifest:$manifest `
     /out:$release $sources
 if ($LASTEXITCODE -ne 0) {
     throw "Build failed with exit code $LASTEXITCODE"
@@ -31,6 +35,7 @@ if ($InstallDesktopShortcut) {
     $shortcut = $shell.CreateShortcut($shortcutPath)
     $shortcut.TargetPath = $release
     $shortcut.WorkingDirectory = Split-Path -Parent $release
+    $shortcut.IconLocation = "$release,0"
     $shortcut.Description = [Text.Encoding]::UTF8.GetString(
         [Convert]::FromBase64String('6K+K5pat44CB5L+u5aSN5bm25a6J5YWo5ZCv5YqoIENvZGV4')
     )
