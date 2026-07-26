@@ -1,11 +1,18 @@
 {
   "project": "codex-recovery-center",
-  "version": "1.2.0",
-  "source_commit": "08b895eabfcad2dcef1d579a6d5affa0a68bccb6",
+  "version": "1.3.0",
+  "source_commit": "9f763e36a16c8d4b25adb4bcda4076e0d4623b9f",
+  "build_date": "2026-07-26",
+  "platform": "Windows x64 / .NET Framework WinForms",
   "artifacts": [
     {
-      "file": "Codex-Recovery-Center.exe",
-      "sha256": "425A656D78BFBAB15EE119BA69D638BF66EF994929B1FC1DDAAA456E18158DD1"
+      "file": "Codex-Recovery-Center-v1.3.0.exe",
+      "sha256": "F0F2B3E7B6D42D605A135CB8D1F62AF7BFE4D2E5CF3789FBA5F8974CDDA2FEDA",
+      "bytes": 67072
     }
+  ],
+  "known_limitations": [
+    "Cannot patch third-party GPU or Codex application defects",
+    "Microsoft Store restaging depends on Windows App Installer and network availability"
   ]
 }
