@@ -1,11 +1,11 @@
 {
   "project": "codex-recovery-center",
-  "version": "1.0.0",
-  "source_commit": "9e157cd5c4dcb018c98e8b171aa8de2df7010c91",
+  "version": "1.1.0",
+  "source_commit": "46cfad41f4c25ddb7bee5404edc71c05ab351656",
   "artifacts": [
     {
       "file": "Codex-Recovery-Center.exe",
-      "sha256": "18370C3BA549FBF40E965856C91259296FDD7F309BA92CB42E07270C6474974F"
+      "sha256": "0F1774DFD7293FFF4C1FB9019BB1DE32CE1FC463860A1FDE8747DA76A3226BC2"
     }
   ]
 }
