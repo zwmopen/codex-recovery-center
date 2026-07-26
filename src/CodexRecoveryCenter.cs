@@ -137,7 +137,7 @@ namespace CodexRecoveryCenter
             return RunPowerShell(script, 60000);
         }
 
-        public static CommandResult RestageFromMicrosoftStore()
+        public static CommandResult RestageFromMicrosoftStore(Action<int> elapsedProgress)
         {
             string winget = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -149,21 +149,25 @@ namespace CodexRecoveryCenter
                 "install --id " + StoreProductId +
                 " --source msstore --force --silent --disable-interactivity" +
                 " --accept-package-agreements --accept-source-agreements";
-            return RunProcess(winget, args, 300000);
+            return RunProcess(winget, args, 300000, elapsedProgress);
         }
 
         public static PackageState WaitForOk(int seconds, Action<string> progress)
         {
             PackageState state = new PackageState();
-            for (int elapsed = 0; elapsed <= seconds; elapsed += 3)
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            while (true)
             {
                 state = GetPackageState();
+                int elapsed = Math.Min(seconds, (int)stopwatch.Elapsed.TotalSeconds);
                 progress("等待 Windows 完成处理：" + state.Status + "（" + elapsed + "/" + seconds + " 秒）");
                 if (state.IsOk)
                     return state;
-                Thread.Sleep(3000);
+                if (stopwatch.Elapsed.TotalSeconds >= seconds)
+                    return state;
+                int remainingMs = Math.Max(200, (int)((seconds - stopwatch.Elapsed.TotalSeconds) * 1000));
+                Thread.Sleep(Math.Min(2000, remainingMs));
             }
-            return state;
         }
 
         public static CommandResult RunPowerShell(string script, int timeoutMs)
@@ -177,6 +181,12 @@ namespace CodexRecoveryCenter
         }
 
         public static CommandResult RunProcess(string file, string args, int timeoutMs)
+        {
+            return RunProcess(file, args, timeoutMs, null);
+        }
+
+        public static CommandResult RunProcess(string file, string args, int timeoutMs,
+            Action<int> elapsedProgress)
         {
             var result = new CommandResult();
             using (var process = new Process())
@@ -198,7 +208,17 @@ namespace CodexRecoveryCenter
                 process.Start();
                 process.BeginOutputReadLine();
                 process.BeginErrorReadLine();
-                if (!process.WaitForExit(timeoutMs))
+                Stopwatch stopwatch = Stopwatch.StartNew();
+                bool exited = false;
+                while (!(exited = process.WaitForExit(1000)))
+                {
+                    int elapsed = (int)stopwatch.Elapsed.TotalSeconds;
+                    if (elapsedProgress != null)
+                        elapsedProgress(elapsed);
+                    if (stopwatch.ElapsedMilliseconds >= timeoutMs)
+                        break;
+                }
+                if (!exited)
                 {
                     result.TimedOut = true;
                     try { process.Kill(); } catch { }
@@ -392,7 +412,7 @@ namespace CodexRecoveryCenter
             };
             var version = new Label
             {
-                Text = "v1.1",
+                Text = "v1.2",
                 Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold),
                 ForeColor = Muted,
                 AutoSize = true,
@@ -595,6 +615,16 @@ namespace CodexRecoveryCenter
             statusDot.ForeColor = busy ? Amber : statusDot.ForeColor;
         }
 
+        private void SetStatusDetail(string text)
+        {
+            if (InvokeRequired)
+            {
+                BeginInvoke(new Action<string>(SetStatusDetail), text);
+                return;
+            }
+            statusDetail.Text = text;
+        }
+
         private async Task CheckAsync()
         {
             SetBusy(true, "正在检查安装与运行状态……");
@@ -650,13 +680,35 @@ namespace CodexRecoveryCenter
                     WriteLog("执行当前用户注册修复。");
                     CommandResult register = RecoveryEngine.RepairRegistration();
                     WriteLog("注册修复退出码：" + register.ExitCode);
-                    state = RecoveryEngine.WaitForOk(45, WriteLog);
+                    if (register.ExitCode == 0 && !register.TimedOut)
+                    {
+                        int registrationWait = state.Status.IndexOf(
+                            "NeedsRemediation", StringComparison.OrdinalIgnoreCase) >= 0 ? 12 : 30;
+                        SetBusy(true, "正在确认注册修复结果……");
+                        SetStatusDetail("当前状态最多等待 " + registrationWait + " 秒，避免无效空等");
+                        state = RecoveryEngine.WaitForOk(registrationWait, WriteLog);
+                    }
+                    else
+                    {
+                        WriteLog("注册修复未正常完成，直接进入微软商店官方恢复。");
+                    }
                 }
 
                 if (!state.IsOk)
                 {
                     WriteLog("注册修复不足，改用微软商店官方源重新暂存。");
-                    CommandResult store = RecoveryEngine.RestageFromMicrosoftStore();
+                    SetBusy(true, "正在从微软商店恢复……");
+                    SetStatusDetail("Windows 正在重新校验程序包，通常需要 2–4 分钟");
+                    int lastReported = -1;
+                    CommandResult store = RecoveryEngine.RestageFromMicrosoftStore(elapsed =>
+                    {
+                        SetStatusDetail("微软商店处理中：已用 " + elapsed + " 秒（通常需要 2–4 分钟）");
+                        if (elapsed >= 15 && elapsed / 15 != lastReported)
+                        {
+                            lastReported = elapsed / 15;
+                            WriteLog("微软商店仍在处理，已用 " + elapsed + " 秒。");
+                        }
+                    });
                     WriteLog("微软商店源退出码：" + store.ExitCode +
                         (store.TimedOut ? "（超时）" : ""));
                     if (!String.IsNullOrWhiteSpace(store.Output))
