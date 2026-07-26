@@ -14,6 +14,15 @@ namespace CodexRecoveryCenter
 {
     internal static class Program
     {
+        private const string SingleInstanceName =
+            @"Local\CodexRecoveryCenter.SingleInstance";
+
+        [DllImport("user32.dll")]
+        private static extern bool SetForegroundWindow(IntPtr window);
+
+        [DllImport("user32.dll")]
+        private static extern bool ShowWindow(IntPtr window, int command);
+
         [STAThread]
         private static void Main(string[] args)
         {
@@ -36,9 +45,53 @@ namespace CodexRecoveryCenter
                 return;
             }
 
-            Application.EnableVisualStyles();
-            Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new MainForm());
+            bool createdNew;
+            using (var singleInstance = new Mutex(true, SingleInstanceName, out createdNew))
+            {
+                if (!createdNew)
+                {
+                    ActivateExistingWindow();
+                    return;
+                }
+
+                try
+                {
+                    Application.EnableVisualStyles();
+                    Application.SetCompatibleTextRenderingDefault(false);
+                    Application.Run(new MainForm());
+                }
+                finally
+                {
+                    try { singleInstance.ReleaseMutex(); } catch { }
+                }
+            }
+        }
+
+        private static void ActivateExistingWindow()
+        {
+            int currentId = Process.GetCurrentProcess().Id;
+            string processName = Process.GetCurrentProcess().ProcessName;
+            for (int attempt = 0; attempt < 15; attempt++)
+            {
+                foreach (Process process in Process.GetProcessesByName(processName))
+                {
+                    try
+                    {
+                        if (process.Id == currentId || process.MainWindowHandle == IntPtr.Zero)
+                            continue;
+                        ShowWindow(process.MainWindowHandle, 9);
+                        SetForegroundWindow(process.MainWindowHandle);
+                        return;
+                    }
+                    catch { }
+                    finally { process.Dispose(); }
+                }
+                Thread.Sleep(100);
+            }
+
+            MessageBox.Show(
+                "恢复中心已经在运行或正在处理。\n\n请查看已有窗口，不要重复启动修复。",
+                "恢复正在进行", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
     }
 
@@ -58,11 +111,46 @@ namespace CodexRecoveryCenter
         public bool TimedOut;
     }
 
+    internal sealed class MemoryState
+    {
+        public double TotalPhysicalGb;
+        public double AvailablePhysicalGb;
+        public double TotalVirtualGb;
+        public double AvailableVirtualGb;
+        public double CommitPressurePercent;
+        public bool IsHighPressure
+        {
+            get
+            {
+                return AvailableVirtualGb < 6.0 || AvailablePhysicalGb < 1.5 ||
+                    CommitPressurePercent >= 85.0;
+            }
+        }
+    }
+
     internal static class RecoveryEngine
     {
         public const string PackageName = "OpenAI.Codex";
         public const string PackageFamily = "OpenAI.Codex_2p2nqsd0c76g0";
         public const string StoreProductId = "9PLM9XGG6VKS";
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+        private sealed class MemoryStatus
+        {
+            public uint Length = (uint)Marshal.SizeOf(typeof(MemoryStatus));
+            public uint MemoryLoad;
+            public ulong TotalPhysical;
+            public ulong AvailablePhysical;
+            public ulong TotalPageFile;
+            public ulong AvailablePageFile;
+            public ulong TotalVirtual;
+            public ulong AvailableVirtual;
+            public ulong AvailableExtendedVirtual;
+        }
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        private static extern bool GlobalMemoryStatusEx(
+            [In, Out] MemoryStatus buffer);
 
         public static string LogRoot
         {
@@ -93,6 +181,25 @@ namespace CodexRecoveryCenter
                 Status = parts.Length > 1 ? parts[1].Trim() : "Unknown",
                 InstallLocation = parts.Length > 2 ? parts[2].Trim() : "",
                 PackageFullName = parts.Length > 3 ? parts[3].Trim() : ""
+            };
+        }
+
+        public static MemoryState GetMemoryState()
+        {
+            var raw = new MemoryStatus();
+            if (!GlobalMemoryStatusEx(raw))
+                return new MemoryState();
+
+            const double bytesPerGb = 1024.0 * 1024.0 * 1024.0;
+            double committed = raw.TotalPageFile - raw.AvailablePageFile;
+            return new MemoryState
+            {
+                TotalPhysicalGb = raw.TotalPhysical / bytesPerGb,
+                AvailablePhysicalGb = raw.AvailablePhysical / bytesPerGb,
+                TotalVirtualGb = raw.TotalPageFile / bytesPerGb,
+                AvailableVirtualGb = raw.AvailablePageFile / bytesPerGb,
+                CommitPressurePercent = raw.TotalPageFile == 0
+                    ? 0 : committed * 100.0 / raw.TotalPageFile
             };
         }
 
@@ -249,6 +356,7 @@ namespace CodexRecoveryCenter
         public static string BuildSelfTest()
         {
             PackageState state = GetPackageState();
+            MemoryState memory = GetMemoryState();
             string winget = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "Microsoft", "WindowsApps", "winget.exe");
@@ -260,7 +368,10 @@ namespace CodexRecoveryCenter
                 "packageFullName=" + state.PackageFullName,
                 "executableExists=" + File.Exists(Path.Combine(state.InstallLocation ?? "", "app", "ChatGPT.exe")),
                 "wingetExists=" + File.Exists(winget),
-                "codexRunning=" + IsCodexRunning()
+                "codexRunning=" + IsCodexRunning(),
+                "virtualMemoryFreeGb=" + memory.AvailableVirtualGb.ToString("F2"),
+                "commitPressurePercent=" + memory.CommitPressurePercent.ToString("F1"),
+                "memoryPressureHigh=" + memory.IsHighPressure
             });
         }
     }

@@ -2,6 +2,7 @@
 
 ```text
 WinForms GUI
+  ├─ Single-instance mutex：重复启动只唤醒已有窗口
   ├─ MainForm：状态、恢复路径、操作组、更新入口
   ├─ SettingsForm：双主题与更新偏好
   ├─ AboutForm / LogForm：产品说明与诊断记录
@@ -11,6 +12,7 @@ WinForms GUI
   │   ├─ 安全启动：ChatGPT.exe --disable-gpu
   │   ├─ 注册修复：RegisterByFamilyName + 12/30 秒轮询
   │   └─ 商店兜底：winget → msstore → 9PLM9XGG6VKS + 240 秒轮询
+  ├─ GlobalMemoryStatusEx：物理/虚拟内存余量与提交压力
   ├─ ThemeManager / SettingsStore：视觉与偏好持久化
   └─ UpdateService：Latest Release 清单 → EXE 下载 → SHA-256 → 用户确认替换
 ```

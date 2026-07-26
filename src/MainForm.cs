@@ -25,6 +25,7 @@ namespace CodexRecoveryCenter
         private readonly StringBuilder logBuffer = new StringBuilder();
         private AppSettings appSettings;
         private bool lastPackageOk = true;
+        private bool lastMemoryHigh;
 
         public MainForm()
         {
@@ -278,8 +279,8 @@ namespace CodexRecoveryCenter
         {
             appSettings = updated;
             ThemeManager.Apply(this, appSettings.Theme);
-            statusDot.ForeColor = lastPackageOk
-                ? CurrentPalette.Accent : CurrentPalette.Danger;
+            statusDot.ForeColor = !lastPackageOk ? CurrentPalette.Danger :
+                lastMemoryHigh ? CurrentPalette.Warning : CurrentPalette.Accent;
             WriteLog("设置已保存；主题：" +
                 (appSettings.Theme == VisualTheme.Neumorphic ? "拟态悬浮" : "克制玻璃") + "。");
         }
@@ -328,15 +329,25 @@ namespace CodexRecoveryCenter
         {
             SetBusy(true, "正在检查当前状态", "正在读取安装与运行状态……");
             PackageState state = await Task.Run(() => RecoveryEngine.GetPackageState());
+            MemoryState memory = RecoveryEngine.GetMemoryState();
             bool running = RecoveryEngine.IsCodexRunning();
             lastPackageOk = state.IsOk;
+            lastMemoryHigh = memory.IsHighPressure;
             WriteLog("安装状态：" + state.Status + "；正在运行：" + (running ? "是" : "否"));
-            statusDot.ForeColor = state.IsOk ? CurrentPalette.Accent : CurrentPalette.Danger;
+            WriteLog("虚拟内存可用：" + memory.AvailableVirtualGb.ToString("F1") +
+                " GB；提交压力：" + memory.CommitPressurePercent.ToString("F0") + "%。");
+            statusDot.ForeColor = !state.IsOk ? CurrentPalette.Danger :
+                memory.IsHighPressure ? CurrentPalette.Warning : CurrentPalette.Accent;
             SetBusy(false,
-                state.IsOk ? "现在状态正常" : "需要修复",
-                state.IsOk
-                    ? (running ? "安装正常，Codex 当前正在运行" : "安装正常，需要时可以直接启动")
-                    : "Windows 检测到安装注册异常，建议立即恢复");
+                !state.IsOk ? "需要修复" :
+                    memory.IsHighPressure ? "安装正常，但内存压力很高" : "现在状态正常",
+                !state.IsOk
+                    ? "Windows 检测到安装注册异常，建议立即恢复"
+                    : memory.IsHighPressure
+                        ? "虚拟内存只剩 " + memory.AvailableVirtualGb.ToString("F1") +
+                            " GB；多开程序容易再次崩溃"
+                        : (running ? "安装正常，Codex 当前正在运行" :
+                            "安装正常，需要时可以直接启动"));
         }
 
         private async Task SafeLaunchAsync()
