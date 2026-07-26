@@ -1,7 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -18,6 +20,7 @@ namespace CodexRecoveryCenter
         private readonly SoftButton safeButton;
         private readonly SoftButton repairButton;
         private readonly SoftButton storeButton;
+        private readonly SoftButton memoryButton;
         private readonly SoftButton settingsButton;
         private readonly SoftButton aboutButton;
         private readonly SoftButton logButton;
@@ -26,6 +29,7 @@ namespace CodexRecoveryCenter
         private AppSettings appSettings;
         private bool lastPackageOk = true;
         private bool lastMemoryHigh;
+        private bool lastCrashOom;
 
         public MainForm()
         {
@@ -155,7 +159,7 @@ namespace CodexRecoveryCenter
             };
             actions.RowStyles.Add(new RowStyle(SizeType.Absolute, 54F));
             actions.RowStyles.Add(new RowStyle(SizeType.Absolute, 12F));
-            actions.RowStyles.Add(new RowStyle(SizeType.Absolute, 178F));
+            actions.RowStyles.Add(new RowStyle(SizeType.Absolute, 227F));
             actions.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
             body.Controls.Add(actions, 1, 0);
 
@@ -180,13 +184,18 @@ namespace CodexRecoveryCenter
                 "重新检查", 20, 67, 170, 40, ButtonVisualRole.Secondary);
             storeButton = MakeButton(
                 "微软商店修复", 20, 116, 170, 40, ButtonVisualRole.Secondary);
+            memoryButton = MakeButton(
+                "释放内存", 20, 165, 170, 40, ButtonVisualRole.Secondary);
             safeButton.Anchor = checkButton.Anchor = storeButton.Anchor =
+                memoryButton.Anchor =
                 AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-            actionGroup.Controls.AddRange(new Control[] { safeButton, checkButton, storeButton });
+            actionGroup.Controls.AddRange(new Control[]
+                { safeButton, checkButton, storeButton, memoryButton });
             actionGroup.Resize += (s, e) =>
             {
                 int width = Math.Max(120, actionGroup.ClientSize.Width - 40);
-                safeButton.Width = checkButton.Width = storeButton.Width = width;
+                safeButton.Width = checkButton.Width = storeButton.Width =
+                    memoryButton.Width = width;
             };
 
             var footer = MakeLabel(
@@ -204,6 +213,12 @@ namespace CodexRecoveryCenter
             repairButton.Click += async (s, e) => await RepairAsync();
             storeButton.Click += (s, e) =>
                 Process.Start("ms-windows-store://pdp/?ProductId=" + RecoveryEngine.StoreProductId);
+            memoryButton.Click += async (s, e) =>
+            {
+                using (var relief = new MemoryReliefForm(appSettings.Theme, WriteLog))
+                    relief.ShowDialog(this);
+                await CheckAsync();
+            };
             settingsButton.Click += (s, e) => OpenSettings();
             aboutButton.Click += (s, e) =>
             {
@@ -306,7 +321,8 @@ namespace CodexRecoveryCenter
                 return;
             }
             checkButton.Enabled = safeButton.Enabled = repairButton.Enabled =
-                storeButton.Enabled = settingsButton.Enabled = aboutButton.Enabled = !busy;
+                storeButton.Enabled = memoryButton.Enabled =
+                settingsButton.Enabled = aboutButton.Enabled = !busy;
             progress.Style = busy ? ProgressBarStyle.Marquee : ProgressBarStyle.Blocks;
             progress.Visible = busy;
             statusTitle.Text = title;
@@ -327,27 +343,63 @@ namespace CodexRecoveryCenter
 
         private async Task CheckAsync()
         {
-            SetBusy(true, "正在检查当前状态", "正在读取安装与运行状态……");
-            PackageState state = await Task.Run(() => RecoveryEngine.GetPackageState());
+            SetBusy(true, "正在检查当前状态", "正在读取安装、崩溃与内存状态……");
+            Task<PackageState> stateTask = Task.Run(() => RecoveryEngine.GetPackageState());
+            Task<CrashInfo> crashTask = Task.Run(() => RecoveryEngine.GetLastCodexCrash());
+            PackageState state = await stateTask;
+            CrashInfo crash = await crashTask;
             MemoryState memory = RecoveryEngine.GetMemoryState();
             bool running = RecoveryEngine.IsCodexRunning();
             lastPackageOk = state.IsOk;
             lastMemoryHigh = memory.IsHighPressure;
+            lastCrashOom = crash.Found && crash.Kind == CrashKind.OutOfMemory;
             WriteLog("安装状态：" + state.Status + "；正在运行：" + (running ? "是" : "否"));
+            WriteLog(crash.Found
+                ? "最近一次 Codex 崩溃：" + crash.Time.ToString("MM-dd HH:mm") + "，" +
+                    crash.App + "，异常码 " + crash.ExceptionCode +
+                    "，判定：" + crash.KindText + "。"
+                : "事件日志里没有近期 Codex 崩溃记录。");
             WriteLog("虚拟内存可用：" + memory.AvailableVirtualGb.ToString("F1") +
                 " GB；提交压力：" + memory.CommitPressurePercent.ToString("F0") + "%。");
-            statusDot.ForeColor = !state.IsOk ? CurrentPalette.Danger :
-                memory.IsHighPressure ? CurrentPalette.Warning : CurrentPalette.Accent;
-            SetBusy(false,
-                !state.IsOk ? "需要修复" :
-                    memory.IsHighPressure ? "安装正常，但内存压力很高" : "现在状态正常",
-                !state.IsOk
-                    ? "Windows 检测到安装注册异常，建议立即恢复"
-                    : memory.IsHighPressure
-                        ? "虚拟内存只剩 " + memory.AvailableVirtualGb.ToString("F1") +
-                            " GB；多开程序容易再次崩溃"
-                        : (running ? "安装正常，Codex 当前正在运行" :
-                            "安装正常，需要时可以直接启动"));
+
+            string title;
+            string detail;
+            Color dot;
+            if (!state.IsOk)
+            {
+                title = "需要修复";
+                detail = "Windows 检测到安装注册异常，建议立即恢复";
+                dot = CurrentPalette.Danger;
+            }
+            else if (memory.IsCritical)
+            {
+                title = "内存告急，随时可能再崩";
+                detail = "可用提交内存只剩 " + memory.AvailableVirtualGb.ToString("F1") +
+                    " GB；点「释放内存」马上腾出空间";
+                dot = CurrentPalette.Danger;
+            }
+            else if (crash.IsRecent && crash.Kind == CrashKind.OutOfMemory)
+            {
+                title = "安装正常，上次崩溃是内存耗尽";
+                detail = "修复安装对这类崩溃无效；点「释放内存」更有用";
+                dot = CurrentPalette.Warning;
+            }
+            else if (memory.IsHighPressure)
+            {
+                title = "安装正常，但内存压力很高";
+                detail = "虚拟内存只剩 " + memory.AvailableVirtualGb.ToString("F1") +
+                    " GB；多开程序容易再次崩溃";
+                dot = CurrentPalette.Warning;
+            }
+            else
+            {
+                title = "现在状态正常";
+                detail = running ? "安装正常，Codex 当前正在运行" :
+                    "安装正常，需要时可以直接启动";
+                dot = CurrentPalette.Accent;
+            }
+            statusDot.ForeColor = dot;
+            SetBusy(false, title, detail);
         }
 
         private async Task SafeLaunchAsync()
@@ -391,6 +443,10 @@ namespace CodexRecoveryCenter
                 PackageState state = RecoveryEngine.GetPackageState();
                 WriteLog("初始包状态：" + state.Status);
 
+                if (state.IsOk && lastCrashOom)
+                    WriteLog("安装状态正常，而最近一次崩溃是内存耗尽；" +
+                        "修复安装防不住这类崩溃，建议使用「释放内存」。");
+
                 if (!state.IsOk)
                 {
                     SetBusy(true, "正在修复应用注册", "先处理当前用户的安装注册");
@@ -399,7 +455,7 @@ namespace CodexRecoveryCenter
                     if (register.ExitCode == 0 && !register.TimedOut)
                     {
                         int wait = state.Status.IndexOf(
-                            "NeedsRemediation", StringComparison.OrdinalIgnoreCase) >= 0 ? 12 : 30;
+                            "NeedsRemediation", StringComparison.OrdinalIgnoreCase) >= 0 ? 8 : 30;
                         state = RecoveryEngine.WaitForOk(wait, WriteLog);
                     }
                 }
@@ -495,6 +551,158 @@ namespace CodexRecoveryCenter
             }
             if (!restartScheduled && !IsDisposed)
                 await CheckAsync();
+        }
+    }
+
+    internal sealed class MemoryReliefForm : ThemedForm
+    {
+        private readonly CheckedListBox list;
+        private readonly Label summary;
+        private readonly SoftButton closeSelectedButton;
+        private readonly SoftButton refreshButton;
+        private readonly Action<string> writeLog;
+        private List<ProcessGroup> groups = new List<ProcessGroup>();
+
+        public MemoryReliefForm(VisualTheme theme, Action<string> log)
+        {
+            writeLog = log;
+            Text = "释放内存 · Codex 恢复中心";
+            ClientSize = new Size(640, 496);
+            MinimumSize = new Size(580, 440);
+            StartPosition = FormStartPosition.CenterParent;
+            Font = new Font("Microsoft YaHei UI", 9F);
+            AutoScaleMode = AutoScaleMode.Dpi;
+
+            var title = new Label
+            {
+                Text = "释放内存",
+                Font = new Font("Microsoft YaHei UI", 16F, FontStyle.Bold),
+                AutoSize = true,
+                Location = new Point(32, 22),
+                BackColor = Color.Transparent,
+                Tag = "title"
+            };
+            summary = new Label
+            {
+                Text = "正在统计……",
+                Font = new Font("Microsoft YaHei UI", 9.5F),
+                AutoSize = true,
+                Location = new Point(34, 60),
+                BackColor = Color.Transparent,
+                Tag = "muted"
+            };
+            var hint = new Label
+            {
+                Text = "关闭会丢失所选程序里未保存的内容，先保存重要工作。",
+                Font = new Font("Microsoft YaHei UI", 9F),
+                AutoSize = true,
+                Location = new Point(34, 84),
+                BackColor = Color.Transparent,
+                Tag = "warning"
+            };
+            var card = new SoftPanel
+            {
+                Location = new Point(28, 114),
+                Size = new Size(584, 300),
+                Anchor = AnchorStyles.Top | AnchorStyles.Bottom |
+                    AnchorStyles.Left | AnchorStyles.Right,
+                Padding = new Padding(20, 18, 20, 18),
+                Tag = "card"
+            };
+            list = new CheckedListBox
+            {
+                Dock = DockStyle.Fill,
+                BorderStyle = BorderStyle.None,
+                CheckOnClick = true,
+                IntegralHeight = false,
+                Font = new Font("Microsoft YaHei UI", 9.5F)
+            };
+            ThemePalette palette = ThemeManager.Get(theme);
+            list.BackColor = palette.Card;
+            list.ForeColor = palette.Ink;
+            card.Controls.Add(list);
+
+            refreshButton = new SoftButton
+            {
+                Text = "重新统计",
+                Size = new Size(140, 40),
+                Location = new Point(28, 430),
+                Anchor = AnchorStyles.Bottom | AnchorStyles.Left,
+                VisualRole = ButtonVisualRole.Secondary,
+                Font = new Font("Microsoft YaHei UI", 9.5F)
+            };
+            var cancelButton = new SoftButton
+            {
+                Text = "取消",
+                Size = new Size(96, 40),
+                Location = new Point(348, 430),
+                Anchor = AnchorStyles.Bottom | AnchorStyles.Right,
+                VisualRole = ButtonVisualRole.Ghost,
+                Font = new Font("Microsoft YaHei UI", 9.5F)
+            };
+            closeSelectedButton = new SoftButton
+            {
+                Text = "关闭所选程序",
+                Size = new Size(156, 40),
+                Location = new Point(456, 430),
+                Anchor = AnchorStyles.Bottom | AnchorStyles.Right,
+                VisualRole = ButtonVisualRole.Primary,
+                Font = new Font("Microsoft YaHei UI", 9.5F, FontStyle.Bold)
+            };
+
+            refreshButton.Click += (s, e) => LoadGroups();
+            cancelButton.Click += (s, e) => Close();
+            closeSelectedButton.Click += async (s, e) => await CloseSelectedAsync();
+
+            Controls.AddRange(new Control[]
+                { title, summary, hint, card, refreshButton, cancelButton, closeSelectedButton });
+            ThemeManager.Apply(this, theme);
+            Shown += (s, e) => LoadGroups();
+        }
+
+        private void LoadGroups()
+        {
+            groups = RecoveryEngine.GetTopCommitGroups(12);
+            list.Items.Clear();
+            foreach (ProcessGroup group in groups)
+                list.Items.Add(group.Name + "  ×" + group.Count + "　—　" +
+                    group.CommitMb.ToString("F0") + " MB");
+            MemoryState memory = RecoveryEngine.GetMemoryState();
+            summary.Text = "可用提交内存 " + memory.AvailableVirtualGb.ToString("F1") +
+                " GB / 共 " + memory.TotalVirtualGb.ToString("F1") +
+                " GB（压力 " + memory.CommitPressurePercent.ToString("F0") + "%）";
+        }
+
+        private async Task CloseSelectedAsync()
+        {
+            var selected = new List<ProcessGroup>();
+            foreach (int index in list.CheckedIndices)
+                if (index >= 0 && index < groups.Count)
+                    selected.Add(groups[index]);
+            if (selected.Count == 0)
+            {
+                MessageBox.Show("先勾选要关闭的程序。", "释放内存",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            double totalMb = selected.Sum(group => group.CommitMb);
+            string names = String.Join("、", selected.Select(group =>
+                group.Name + " ×" + group.Count));
+            DialogResult answer = MessageBox.Show(
+                "将关闭：" + names + "\n合计约 " +
+                (totalMb / 1024.0).ToString("F1") + " GB。\n\n" +
+                "这些程序里未保存的内容会丢失。确定关闭？",
+                "确认关闭", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+            if (answer != DialogResult.Yes)
+                return;
+
+            refreshButton.Enabled = closeSelectedButton.Enabled = false;
+            double freedMb = await Task.Run(() =>
+                RecoveryEngine.CloseProcessGroups(selected, writeLog));
+            writeLog("释放内存完成，约回收 " + (freedMb / 1024.0).ToString("F1") + " GB。");
+            refreshButton.Enabled = closeSelectedButton.Enabled = true;
+            LoadGroups();
         }
     }
 

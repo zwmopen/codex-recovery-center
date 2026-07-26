@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
@@ -126,6 +127,54 @@ namespace CodexRecoveryCenter
                     CommitPressurePercent >= 85.0;
             }
         }
+        public bool IsCritical
+        {
+            get { return AvailableVirtualGb < 2.0; }
+        }
+    }
+
+    internal enum CrashKind
+    {
+        Unknown,
+        OutOfMemory,
+        Abort,
+        Other
+    }
+
+    internal sealed class CrashInfo
+    {
+        public bool Found;
+        public DateTime Time;
+        public string App = "";
+        public string ExceptionCode = "";
+        public CrashKind Kind = CrashKind.Unknown;
+
+        public bool IsRecent
+        {
+            get { return Found && (DateTime.Now - Time).TotalHours <= 48.0; }
+        }
+
+        public string KindText
+        {
+            get
+            {
+                switch (Kind)
+                {
+                    case CrashKind.OutOfMemory: return "内存耗尽";
+                    case CrashKind.Abort: return "程序中止（多为资源不足）";
+                    case CrashKind.Other: return "其他异常";
+                    default: return "未知";
+                }
+            }
+        }
+    }
+
+    internal sealed class ProcessGroup
+    {
+        public string Name = "";
+        public int Count;
+        public double CommitMb;
+        public List<int> Ids = new List<int>();
     }
 
     internal static class RecoveryEngine
@@ -219,16 +268,181 @@ namespace CodexRecoveryCenter
 
         public static void StopCodex()
         {
+            bool killedAny = false;
             foreach (string name in new[] { "ChatGPT", "codex" })
             {
                 foreach (Process process in Process.GetProcessesByName(name))
                 {
-                    try { process.Kill(); process.WaitForExit(5000); }
+                    try { process.Kill(); process.WaitForExit(5000); killedAny = true; }
                     catch { }
                     finally { process.Dispose(); }
                 }
             }
-            Thread.Sleep(1500);
+            if (killedAny)
+                Thread.Sleep(1500);
+        }
+
+        public static CrashInfo GetLastCodexCrash()
+        {
+            var info = new CrashInfo();
+            try
+            {
+                using (var log = new EventLog("Application"))
+                {
+                    EventLogEntryCollection entries = log.Entries;
+                    int scanned = 0;
+                    for (int i = entries.Count - 1; i >= 0 && scanned < 400; i--, scanned++)
+                    {
+                        EventLogEntry entry;
+                        try { entry = entries[i]; }
+                        catch { continue; }
+                        if ((entry.InstanceId & 0xFFFF) != 1000)
+                            continue;
+                        if (!"Application Error".Equals(entry.Source, StringComparison.OrdinalIgnoreCase))
+                            continue;
+                        string[] parts = entry.ReplacementStrings;
+                        if (parts == null || parts.Length < 11)
+                            continue;
+                        if (parts[10].IndexOf("OpenAI.Codex", StringComparison.OrdinalIgnoreCase) < 0)
+                            continue;
+                        info.Found = true;
+                        info.Time = entry.TimeGenerated;
+                        info.App = Path.GetFileName(parts[0]);
+                        info.ExceptionCode = parts[6];
+                        if (info.ExceptionCode.IndexOf("c0000409", StringComparison.OrdinalIgnoreCase) >= 0)
+                            info.Kind = DesktopLogsShowOom(info.Time)
+                                ? CrashKind.OutOfMemory : CrashKind.Abort;
+                        else
+                            info.Kind = CrashKind.Other;
+                        break;
+                    }
+                }
+            }
+            catch { }
+            return info;
+        }
+
+        private static bool DesktopLogsShowOom(DateTime around)
+        {
+            try
+            {
+                string root = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "Packages", PackageFamily, "LocalCache", "Local", "Codex", "Logs");
+                for (int back = 0; back <= 1; back++)
+                {
+                    DateTime day = around.Date.AddDays(-back);
+                    string dir = Path.Combine(root, day.ToString("yyyy"),
+                        day.ToString("MM"), day.ToString("dd"));
+                    if (!Directory.Exists(dir))
+                        continue;
+                    foreach (string file in Directory.GetFiles(dir, "*.log"))
+                    {
+                        DateTime touched = File.GetLastWriteTime(file);
+                        if (touched < around.AddHours(-12) || touched > around.AddHours(1))
+                            continue;
+                        if (TailContains(file, "memory allocation of"))
+                            return true;
+                    }
+                }
+            }
+            catch { }
+            return false;
+        }
+
+        private static bool TailContains(string file, string needle)
+        {
+            try
+            {
+                using (var stream = new FileStream(
+                    file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                {
+                    const int maxTail = 131072;
+                    if (stream.Length > maxTail)
+                        stream.Seek(-maxTail, SeekOrigin.End);
+                    using (var reader = new StreamReader(stream, Encoding.UTF8))
+                        return reader.ReadToEnd()
+                            .IndexOf(needle, StringComparison.OrdinalIgnoreCase) >= 0;
+                }
+            }
+            catch { return false; }
+        }
+
+        private static readonly string[] ProtectedProcesses =
+        {
+            "system", "idle", "registry", "smss", "csrss", "wininit", "winlogon",
+            "services", "lsass", "svchost", "dwm", "fontdrvhost", "explorer",
+            "memory compression", "audiodg", "conhost", "runtimebroker", "sihost",
+            "taskhostw", "ctfmon", "searchhost", "startmenuexperiencehost",
+            "shellexperiencehost", "applicationframehost", "textinputhost",
+            "securityhealthservice", "msmpeng", "wudfhost", "spoolsv"
+        };
+
+        public static List<ProcessGroup> GetTopCommitGroups(int maxGroups)
+        {
+            var groups = new Dictionary<string, ProcessGroup>(StringComparer.OrdinalIgnoreCase);
+            int selfId;
+            string selfName;
+            using (Process self = Process.GetCurrentProcess())
+            {
+                selfId = self.Id;
+                selfName = self.ProcessName;
+            }
+            foreach (Process process in Process.GetProcesses())
+            {
+                try
+                {
+                    string name = process.ProcessName;
+                    if (process.Id == selfId ||
+                        name.Equals(selfName, StringComparison.OrdinalIgnoreCase))
+                        continue;
+                    if (Array.IndexOf(ProtectedProcesses, name.ToLowerInvariant()) >= 0)
+                        continue;
+                    long commit = process.PagedMemorySize64;
+                    if (commit <= 0)
+                        continue;
+                    ProcessGroup group;
+                    if (!groups.TryGetValue(name, out group))
+                        groups[name] = group = new ProcessGroup { Name = name };
+                    group.Count++;
+                    group.CommitMb += commit / (1024.0 * 1024.0);
+                    group.Ids.Add(process.Id);
+                }
+                catch { }
+                finally { process.Dispose(); }
+            }
+            return groups.Values
+                .OrderByDescending(group => group.CommitMb)
+                .Take(maxGroups)
+                .ToList();
+        }
+
+        public static double CloseProcessGroups(
+            IEnumerable<ProcessGroup> groups, Action<string> progress)
+        {
+            double freedMb = 0;
+            foreach (ProcessGroup group in groups)
+            {
+                int closed = 0;
+                foreach (int id in group.Ids)
+                {
+                    try
+                    {
+                        using (Process process = Process.GetProcessById(id))
+                        {
+                            long commit = process.PagedMemorySize64;
+                            process.Kill();
+                            process.WaitForExit(4000);
+                            freedMb += commit / (1024.0 * 1024.0);
+                            closed++;
+                        }
+                    }
+                    catch { }
+                }
+                if (progress != null)
+                    progress("已关闭 " + group.Name + " ×" + closed + "。");
+            }
+            return freedMb;
         }
 
         public static bool LaunchSafe(PackageState state)
@@ -357,6 +571,8 @@ namespace CodexRecoveryCenter
         {
             PackageState state = GetPackageState();
             MemoryState memory = GetMemoryState();
+            CrashInfo crash = GetLastCodexCrash();
+            List<ProcessGroup> hogs = GetTopCommitGroups(3);
             string winget = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "Microsoft", "WindowsApps", "winget.exe");
@@ -371,7 +587,16 @@ namespace CodexRecoveryCenter
                 "codexRunning=" + IsCodexRunning(),
                 "virtualMemoryFreeGb=" + memory.AvailableVirtualGb.ToString("F2"),
                 "commitPressurePercent=" + memory.CommitPressurePercent.ToString("F1"),
-                "memoryPressureHigh=" + memory.IsHighPressure
+                "memoryPressureHigh=" + memory.IsHighPressure,
+                "memoryCritical=" + memory.IsCritical,
+                "lastCrashFound=" + crash.Found,
+                "lastCrashTime=" + (crash.Found ? crash.Time.ToString("O") : ""),
+                "lastCrashApp=" + crash.App,
+                "lastCrashCode=" + crash.ExceptionCode,
+                "lastCrashKind=" + crash.Kind,
+                "topCommitGroups=" + String.Join("; ", hogs.Select(group =>
+                    group.Name + "x" + group.Count + "=" +
+                    group.CommitMb.ToString("F0") + "MB"))
             });
         }
     }
