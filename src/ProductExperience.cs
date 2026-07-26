@@ -365,7 +365,9 @@ namespace CodexRecoveryCenter
             ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
             string json;
             using (var client = NewClient())
-                json = client.DownloadString(ProductInfo.UpdateManifestUrl);
+                json = client.DownloadString(ProductInfo.UpdateManifestUrl +
+                    "?client=" + Uri.EscapeDataString(ProductInfo.Version) +
+                    "&time=" + DateTimeOffset.UtcNow.ToUnixTimeSeconds());
 
             var serializer = new JavaScriptSerializer();
             var root = serializer.DeserializeObject(json) as Dictionary<string, object>;
