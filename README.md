@@ -1,50 +1,35 @@
-﻿# Codex 恢复中心
+# Codex 恢复中心
 
-> 项目 ID：`codex-recovery-center`  
-> 版本：0.1.0  
-> 状态：探索  
-> 服务对象：AI 基础设施与 Windows 桌面稳定性  
-> 创建日期：2026-07-26
+服务对象：AI 基础设施与 Windows 桌面稳定性。
 
-## 为什么开发
+这是一个独立于 Codex 运行的 Windows 图形化恢复工具。它解决“Codex 崩溃后提示应用有问题、脚本黑框一闪而过、AppX 状态需要修复、只能反复去商店更新”的问题。
 
-诊断、修复并安全启动 Windows 版 Codex/ChatGPT 的独立桌面工具
+## 使用
 
-这个工具必须回到“AI 基础设施与 Windows 桌面稳定性”中验证价值；如果不能改善对应系统或项目的现实结果，应停止扩建或重新定义。
+双击桌面 `Codex 恢复中心`：
 
-## 目标用户
+- **检查状态**：查看官方包是否安装、状态是否为 `Ok`。
+- **安全启动**：完全关闭 Codex 后，以 `--disable-gpu` 启动。
+- **一键修复并启动**：关闭残留进程；状态异常时修复当前用户注册并等待；仍异常时调用微软商店官方源 `9PLM9XGG6VKS` 重新暂存；恢复为 `Ok` 后安全启动。
+- **打开官方商店页**：仅在自动商店恢复失败时使用。
 
-待补充。
+工具不会主动执行 `Reset-AppxPackage`，不会主动清空应用数据。日志保存在：
 
-## 核心使用流程
+```text
+%LOCALAPPDATA%\CodexRecoveryCenter\logs
+```
 
-1. 待补充。
+## 安装与更新
 
-## 安装与启动
+发布文件位于 `releases\Codex-Recovery-Center.exe`。运行构建脚本可重建并更新桌面入口：
 
-待实现后填写真实可运行命令。
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\Build.ps1 -InstallDesktopShortcut
+```
 
-## 数据和隐私
+## 已知限制
 
-- 数据位置：待补充。
-- 是否上云：待补充。
-- 导出、备份和恢复：待补充。
-
-## 项目文档
-
-- [设计与原则](docs/DESIGN.md)
-- [架构与数据流](docs/ARCHITECTURE.md)
-- [开发交接](docs/HANDOFF.md)
-- [踩坑与故障排查](docs/TROUBLESHOOTING.md)
-- [变更记录](CHANGELOG.md)
-
-## 当前限制
-
-- 项目刚创建，尚未完成功能验收。
-
-## 源码与发布
-
-- 源码真源：本目录 Git 仓库的 `src/`。
-- 发布包：`releases/`；大型二进制不进 Git。
-- 中间产物：`.work/`、`build/`、`dist/`，可重建、可删除。
+- 显卡驱动或 Codex 自身 GPU 缺陷仍可能导致运行时崩溃；本工具负责降低风险和恢复可启动状态，不修改厂商程序代码。
+- 微软商店服务、网络或 App Installer 不可用时，官方源重新暂存可能失败，工具会保留日志并打开商店页。
+- 修复按钮会关闭所有 Codex 窗口，使用前先保存正在进行的任务。
 

@@ -1,37 +1,18 @@
-﻿# 架构与数据流
-
-## 系统边界
-
-- 输入：待补充。
-- 输出：待补充。
-- 外部依赖：待补充。
-
-## 目录和模块
-
-| 路径 | 职责 | 是否权威真源 |
-|---|---|---|
-| `src/` | 功能源码 | 是 |
-| `docs/` | 设计、架构、交接和排障 | 是 |
-| `tests/` | 验证代码和验收用例 | 是 |
-| `.work/` | 可删除中间产物 | 否 |
-
-## 数据流
+# 架构
 
 ```text
-输入 → 处理 → 验证 → 结果 → 持久化/导出
+WinForms GUI
+  ├─ 包状态探针：Get-AppxPackage OpenAI.Codex
+  ├─ 进程管理：ChatGPT.exe / codex.exe
+  ├─ 安全启动：ChatGPT.exe --disable-gpu
+  ├─ 注册修复：RegisterByFamilyName + 45 秒轮询
+  ├─ 商店兜底：winget → msstore → 9PLM9XGG6VKS + 240 秒轮询
+  └─ 本地日志：%LOCALAPPDATA%\CodexRecoveryCenter\logs
 ```
 
-待按实际项目改写。
+源码真源：`src\CodexRecoveryCenter.cs`。  
+构建入口：`scripts\Build.ps1`。  
+交付文件：`releases\Codex-Recovery-Center.exe`。
 
-## 数据与持久化
-
-- 本地数据：待补充。
-- 云端数据：待补充。
-- 缓存：待补充。
-- 备份和恢复：待补充。
-- 迁移和兼容：待补充。
-
-## 安全和权限
-
-待补充。
+程序使用系统自带 .NET Framework WinForms，发布文件不需要额外运行库。微软商店兜底依赖 Windows App Installer 提供的 `winget.exe`。
 
