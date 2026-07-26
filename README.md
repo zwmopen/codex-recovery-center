@@ -26,14 +26,30 @@
 
 ## 安装与更新
 
-发布文件位于 `releases\Codex-Recovery-Center.exe`。运行构建脚本可重建并更新桌面入口：
+普通用户请从 [GitHub Releases](https://github.com/zwmopen/codex-recovery-center/releases/latest) 下载最新版 `Codex-Recovery-Center-v*.exe`，双击即可运行。
+
+开发者可运行构建脚本重建并更新桌面入口：
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\Build.ps1 -InstallDesktopShortcut
 ```
+
+## 版本
+
+| 版本 | 主要变化 |
+|---|---|
+| 1.0.0 | 独立图形界面、状态检查、安全启动和分级恢复 |
+| 1.1.0 | 重做低饱和中文界面，处理记录默认折叠 |
+| 1.2.0 | 真实故障闭环验证，缩短无效等待并显示商店处理用时 |
+
+完整变更见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 已知限制
 
 - 显卡驱动或 Codex 自身 GPU 缺陷仍可能导致运行时崩溃；本工具负责降低风险和恢复可启动状态，不修改厂商程序代码。
 - 微软商店服务、网络或 App Installer 不可用时，官方源重新暂存可能失败，工具会保留日志并打开商店页。
 - 修复按钮会关闭所有 Codex 窗口，使用前先保存正在进行的任务。
+
+## 隐私与许可证
+
+诊断日志只保存在本机 `%LOCALAPPDATA%\CodexRecoveryCenter\logs`，项目不上传聊天内容、凭据或日志。源码采用 [MIT License](LICENSE)。

@@ -25,6 +25,8 @@
 - 发布：`releases\Codex-Recovery-Center.exe`
 - 桌面：`C:\Users\z\Desktop\Codex 恢复中心.lnk`
 - 日志：`C:\Users\z\AppData\Local\CodexRecoveryCenter\logs`
+- 远程仓库：`https://github.com/zwmopen/codex-recovery-center`
+- 公开下载：`https://github.com/zwmopen/codex-recovery-center/releases`
 
 ## 恢复算法
 
