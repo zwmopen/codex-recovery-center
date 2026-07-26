@@ -2,7 +2,8 @@ param([switch]$InstallDesktopShortcut)
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
-$source = Join-Path $projectRoot 'src\CodexRecoveryCenter.cs'
+$sources = Get-ChildItem -LiteralPath (Join-Path $projectRoot 'src') -Filter '*.cs' |
+    Sort-Object Name | ForEach-Object { $_.FullName }
 $build = Join-Path $projectRoot 'build'
 $release = Join-Path $projectRoot 'releases\Codex-Recovery-Center.exe'
 $compiler = 'C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe'
@@ -14,8 +15,8 @@ if (-not (Test-Path -LiteralPath $compiler)) {
 New-Item -ItemType Directory -Path $build -Force | Out-Null
 & $compiler /nologo /target:winexe /optimize+ /platform:x64 `
     /reference:System.dll /reference:System.Core.dll /reference:System.Drawing.dll `
-    /reference:System.Windows.Forms.dll `
-    /out:$release $source
+    /reference:System.Windows.Forms.dll /reference:System.Web.Extensions.dll `
+    /out:$release $sources
 if ($LASTEXITCODE -ne 0) {
     throw "Build failed with exit code $LASTEXITCODE"
 }

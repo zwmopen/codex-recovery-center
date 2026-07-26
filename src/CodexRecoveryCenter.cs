@@ -22,6 +22,19 @@ namespace CodexRecoveryCenter
                 File.WriteAllText(args[1], RecoveryEngine.BuildSelfTest(), Encoding.UTF8);
                 return;
             }
+            if (args.Length == 2 && args[0] == "--update-self-test")
+            {
+                try
+                {
+                    File.WriteAllText(args[1], UpdateService.BuildSelfTest(), Encoding.UTF8);
+                }
+                catch (Exception ex)
+                {
+                    File.WriteAllText(args[1], "updateSelfTestError=" + ex, Encoding.UTF8);
+                    Environment.ExitCode = 2;
+                }
+                return;
+            }
 
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
@@ -257,15 +270,24 @@ namespace CodexRecoveryCenter
         public Color FillColor { get; set; }
         public Color HoverColor { get; set; }
         public Color TextColor { get; set; }
+        public Color SurfaceColor { get; set; }
+        public Color HighlightColor { get; set; }
+        public Color ShadowColor { get; set; }
         public int CornerRadius { get; set; }
+        public ButtonVisualRole VisualRole { get; set; }
         private bool hovering;
+        private bool pressed;
 
         public SoftButton()
         {
             FillColor = Color.White;
             HoverColor = Color.FromArgb(244, 241, 235);
             TextColor = Color.FromArgb(48, 51, 48);
+            SurfaceColor = Color.FromArgb(209, 220, 229);
+            HighlightColor = Color.FromArgb(125, 255, 255, 255);
+            ShadowColor = Color.FromArgb(42, 112, 130, 150);
             CornerRadius = 13;
+            VisualRole = ButtonVisualRole.Secondary;
             FlatStyle = FlatStyle.Flat;
             FlatAppearance.BorderSize = 0;
             Cursor = Cursors.Hand;
@@ -283,19 +305,51 @@ namespace CodexRecoveryCenter
         protected override void OnMouseLeave(EventArgs e)
         {
             hovering = false;
+            pressed = false;
             Invalidate();
             base.OnMouseLeave(e);
+        }
+
+        protected override void OnMouseDown(MouseEventArgs e)
+        {
+            pressed = true;
+            Invalidate();
+            base.OnMouseDown(e);
+        }
+
+        protected override void OnMouseUp(MouseEventArgs e)
+        {
+            pressed = false;
+            Invalidate();
+            base.OnMouseUp(e);
         }
 
         protected override void OnPaint(PaintEventArgs e)
         {
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-            e.Graphics.Clear(Parent != null ? Parent.BackColor : SystemColors.Control);
-            Rectangle box = new Rectangle(0, 0, Width - 1, Height - 1);
+            e.Graphics.Clear(SurfaceColor);
+            Rectangle box = new Rectangle(4, 4, Math.Max(1, Width - 9), Math.Max(1, Height - 9));
+            Color fill = pressed ? ControlPaint.Dark(FillColor, 0.03F) :
+                hovering ? HoverColor : FillColor;
             using (GraphicsPath path = Rounded(box, CornerRadius))
-            using (SolidBrush brush = new SolidBrush(hovering ? HoverColor : FillColor))
+            using (GraphicsPath lightPath = Rounded(
+                new Rectangle(box.X - 2, box.Y - 2, box.Width, box.Height), CornerRadius))
+            using (GraphicsPath darkPath = Rounded(
+                new Rectangle(box.X + 3, box.Y + 4, box.Width, box.Height), CornerRadius))
+            using (SolidBrush light = new SolidBrush(HighlightColor))
+            using (SolidBrush shadow = new SolidBrush(ShadowColor))
+            using (SolidBrush brush = new SolidBrush(fill))
+            using (Pen border = new Pen(Color.FromArgb(
+                VisualRole == ButtonVisualRole.Primary ? 80 : 130, 255, 255, 255)))
             {
+                if (!pressed && VisualRole != ButtonVisualRole.Ghost)
+                {
+                    e.Graphics.FillPath(light, lightPath);
+                    e.Graphics.FillPath(shadow, darkPath);
+                }
                 e.Graphics.FillPath(brush, path);
+                if (VisualRole != ButtonVisualRole.Ghost)
+                    e.Graphics.DrawPath(border, path);
             }
             TextRenderer.DrawText(e.Graphics, Text, Font, box, Enabled ? TextColor :
                 Color.FromArgb(156, 156, 150),
@@ -319,32 +373,62 @@ namespace CodexRecoveryCenter
     internal sealed class SoftPanel : Panel
     {
         public int CornerRadius { get; set; }
+        public Color BorderColor { get; set; }
+        public Color FillColor { get; set; }
+        public Color HighlightColor { get; set; }
+        public Color ShadowColor { get; set; }
 
         public SoftPanel()
         {
             CornerRadius = 16;
+            BorderColor = Color.FromArgb(224, 220, 211);
+            FillColor = Color.FromArgb(226, 235, 241);
+            HighlightColor = Color.FromArgb(125, 255, 255, 255);
+            ShadowColor = Color.FromArgb(42, 112, 130, 150);
             ResizeRedraw = true;
+            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
+                ControlStyles.OptimizedDoubleBuffer | ControlStyles.SupportsTransparentBackColor, true);
+            BackColor = Color.Transparent;
         }
 
-        protected override void OnResize(EventArgs eventargs)
+        protected override void OnPaint(PaintEventArgs e)
         {
-            base.OnResize(eventargs);
-            if (Width < 2 || Height < 2) return;
-            int diameter = CornerRadius * 2;
-            var path = new GraphicsPath();
-            path.AddArc(0, 0, diameter, diameter, 180, 90);
-            path.AddArc(Width - diameter - 1, 0, diameter, diameter, 270, 90);
-            path.AddArc(Width - diameter - 1, Height - diameter - 1, diameter, diameter, 0, 90);
-            path.AddArc(0, Height - diameter - 1, diameter, diameter, 90, 90);
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            Rectangle box = new Rectangle(9, 9, Math.Max(1, Width - 18), Math.Max(1, Height - 18));
+            using (var path = SoftButtonRounded(box, CornerRadius))
+            using (var lightPath = SoftButtonRounded(
+                new Rectangle(box.X - 3, box.Y - 3, box.Width, box.Height), CornerRadius))
+            using (var darkPath = SoftButtonRounded(
+                new Rectangle(box.X + 6, box.Y + 7, box.Width, box.Height), CornerRadius))
+            using (var light = new SolidBrush(HighlightColor))
+            using (var shadow = new SolidBrush(ShadowColor))
+            using (var fill = new SolidBrush(FillColor))
+            using (var pen = new Pen(Color.FromArgb(145, 255, 255, 255)))
+            using (var edge = new Pen(Color.FromArgb(80, BorderColor)))
+            {
+                e.Graphics.FillPath(light, lightPath);
+                e.Graphics.FillPath(shadow, darkPath);
+                e.Graphics.FillPath(fill, path);
+                e.Graphics.DrawPath(pen, path);
+                e.Graphics.DrawPath(edge, path);
+            }
+            base.OnPaint(e);
+        }
+
+        private static GraphicsPath SoftButtonRounded(Rectangle rectangle, int radius)
+        {
+            int diameter = Math.Max(2, radius * 2);
+            GraphicsPath path = new GraphicsPath();
+            path.AddArc(rectangle.Left, rectangle.Top, diameter, diameter, 180, 90);
+            path.AddArc(rectangle.Right - diameter, rectangle.Top, diameter, diameter, 270, 90);
+            path.AddArc(rectangle.Right - diameter, rectangle.Bottom - diameter, diameter, diameter, 0, 90);
+            path.AddArc(rectangle.Left, rectangle.Bottom - diameter, diameter, diameter, 90, 90);
             path.CloseFigure();
-            Region old = Region;
-            Region = new Region(path);
-            if (old != null) old.Dispose();
-            path.Dispose();
+            return path;
         }
     }
 
-    internal sealed class MainForm : Form
+    internal sealed class LegacyMainForm : ThemedForm
     {
         [DllImport("user32.dll")]
         private static extern bool DestroyIcon(IntPtr handle);
@@ -359,11 +443,14 @@ namespace CodexRecoveryCenter
         private readonly SoftButton repairButton;
         private readonly SoftButton storeButton;
         private readonly SoftButton logButton;
+        private readonly SoftButton settingsButton;
+        private readonly SoftButton aboutButton;
         private readonly Panel statusCard;
         private readonly Panel logCard;
         private readonly Label privacyNote;
         private readonly string sessionLog;
         private bool logVisible;
+        private AppSettings appSettings;
 
         private static readonly Color Canvas = Color.FromArgb(239, 237, 231);
         private static readonly Color Paper = Color.FromArgb(250, 249, 246);
@@ -374,8 +461,9 @@ namespace CodexRecoveryCenter
         private static readonly Color Amber = Color.FromArgb(177, 119, 62);
         private static readonly Color Red = Color.FromArgb(171, 76, 70);
 
-        public MainForm()
+        public LegacyMainForm()
         {
+            appSettings = SettingsStore.Load();
             Text = "Codex 恢复中心";
             ClientSize = new Size(820, 610);
             MinimumSize = new Size(760, 570);
@@ -392,7 +480,8 @@ namespace CodexRecoveryCenter
                 Font = new Font("Microsoft YaHei UI", 8.5F, FontStyle.Bold),
                 ForeColor = Sage,
                 AutoSize = true,
-                Location = new Point(42, 30)
+                Location = new Point(42, 30),
+                Tag = "accent"
             };
             var title = new Label
             {
@@ -400,7 +489,8 @@ namespace CodexRecoveryCenter
                 Font = new Font("Microsoft YaHei UI", 23F, FontStyle.Bold),
                 ForeColor = Ink,
                 AutoSize = true,
-                Location = new Point(38, 52)
+                Location = new Point(38, 52),
+                Tag = "title"
             };
             var desc = new Label
             {
@@ -408,24 +498,35 @@ namespace CodexRecoveryCenter
                 Font = new Font("Microsoft YaHei UI", 10.5F),
                 ForeColor = Muted,
                 AutoSize = true,
-                Location = new Point(42, 100)
+                Location = new Point(42, 100),
+                Tag = "muted"
             };
             var version = new Label
             {
-                Text = "v1.2",
+                Text = "v" + ProductInfo.Version,
                 Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold),
                 ForeColor = Muted,
                 AutoSize = true,
                 Anchor = AnchorStyles.Top | AnchorStyles.Right,
-                Location = new Point(740, 34)
+                Location = new Point(566, 33),
+                Tag = "muted"
             };
+            settingsButton = NewButton("设置", 620, 23, 78, 32, Canvas,
+                Color.FromArgb(231, 229, 223), Muted, 9F, false);
+            settingsButton.VisualRole = ButtonVisualRole.Ghost;
+            settingsButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            aboutButton = NewButton("关于", 706, 23, 74, 32, Canvas,
+                Color.FromArgb(231, 229, 223), Muted, 9F, false);
+            aboutButton.VisualRole = ButtonVisualRole.Ghost;
+            aboutButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
 
             statusCard = new SoftPanel
             {
                 BackColor = Paper,
                 Location = new Point(40, 140),
                 Size = new Size(740, 112),
-                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
+                Tag = "card"
             };
             statusDot = new Label
             {
@@ -441,7 +542,8 @@ namespace CodexRecoveryCenter
                 Font = new Font("Microsoft YaHei UI", 13F, FontStyle.Bold),
                 ForeColor = Ink,
                 AutoSize = true,
-                Location = new Point(61, 22)
+                Location = new Point(61, 22),
+                Tag = "title"
             };
             statusDetail = new Label
             {
@@ -449,7 +551,8 @@ namespace CodexRecoveryCenter
                 Font = new Font("Microsoft YaHei UI", 9.5F),
                 ForeColor = Muted,
                 AutoSize = true,
-                Location = new Point(63, 54)
+                Location = new Point(63, 54),
+                Tag = "muted"
             };
             progress = new ProgressBar
             {
@@ -463,6 +566,7 @@ namespace CodexRecoveryCenter
             statusCard.Controls.AddRange(new Control[] { statusDot, statusTitle, statusDetail, progress });
 
             repairButton = NewButton("一键恢复并启动", 40, 276, 740, 58, Sage, SageHover, Color.White, 12.5F, true);
+            repairButton.VisualRole = ButtonVisualRole.Primary;
             repairButton.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
 
             safeButton = NewButton("安全模式启动", 40, 350, 224, 46, Paper,
@@ -479,7 +583,8 @@ namespace CodexRecoveryCenter
                 Font = new Font("Microsoft YaHei UI", 9F),
                 ForeColor = Muted,
                 AutoSize = true,
-                Location = new Point(43, 418)
+                Location = new Point(43, 418),
+                Tag = "muted"
             };
             var help = new Label
             {
@@ -487,18 +592,21 @@ namespace CodexRecoveryCenter
                 Font = new Font("Microsoft YaHei UI", 9F),
                 ForeColor = Color.FromArgb(124, 91, 57),
                 AutoSize = true,
-                Location = new Point(43, 444)
+                Location = new Point(43, 444),
+                Tag = "warning"
             };
 
             logButton = NewButton("查看处理记录  ▾", 40, 478, 160, 36, Canvas,
                 Color.FromArgb(231, 229, 223), Muted, 9F, false);
+            logButton.VisualRole = ButtonVisualRole.Ghost;
             logCard = new SoftPanel
             {
                 BackColor = Paper,
                 Location = new Point(40, 520),
                 Size = new Size(740, 0),
                 Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right,
-                Visible = false
+                Visible = false,
+                Tag = "card"
             };
             log = new TextBox
             {
@@ -510,15 +618,16 @@ namespace CodexRecoveryCenter
                 ForeColor = Color.FromArgb(76, 78, 74),
                 BorderStyle = BorderStyle.None,
                 Font = new Font("Microsoft YaHei UI", 9F),
-                Margin = new Padding(16)
+                Margin = new Padding(16),
+                Tag = "editor"
             };
             logCard.Padding = new Padding(16, 12, 16, 12);
             logCard.Controls.Add(log);
 
             Controls.AddRange(new Control[]
             {
-                eyebrow, title, desc, version, statusCard, repairButton, safeButton, checkButton,
-                storeButton, privacyNote, help, logButton, logCard
+                eyebrow, title, desc, version, settingsButton, aboutButton, statusCard, repairButton,
+                safeButton, checkButton, storeButton, privacyNote, help, logButton, logCard
             });
 
             checkButton.Click += async (s, e) => await CheckAsync();
@@ -527,10 +636,22 @@ namespace CodexRecoveryCenter
             storeButton.Click += (s, e) =>
                 Process.Start("ms-windows-store://pdp/?ProductId=" + RecoveryEngine.StoreProductId);
             logButton.Click += (s, e) => ToggleLog();
+            settingsButton.Click += (s, e) => OpenSettings();
+            aboutButton.Click += (s, e) =>
+            {
+                using (var about = new AboutForm(appSettings.Theme))
+                    about.ShowDialog(this);
+            };
 
             sessionLog = Path.Combine(RecoveryEngine.LogRoot,
                 "recovery-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".log");
-            Shown += async (s, e) => await CheckAsync();
+            ThemeManager.Apply(this, appSettings.Theme);
+            Shown += async (s, e) =>
+            {
+                await CheckAsync();
+                if (appSettings.AutoCheckUpdates)
+                    await CheckUpdatesAsync(false);
+            };
             Resize += (s, e) => LayoutSecondaryButtons();
         }
 
@@ -564,8 +685,85 @@ namespace CodexRecoveryCenter
                 FillColor = fill,
                 HoverColor = hover,
                 TextColor = textColor,
+                VisualRole = bold ? ButtonVisualRole.Primary : ButtonVisualRole.Secondary,
                 Font = new Font("Microsoft YaHei UI", fontSize, bold ? FontStyle.Bold : FontStyle.Regular)
             };
+        }
+
+        private ThemePalette CurrentPalette
+        {
+            get { return ThemeManager.Get(appSettings.Theme); }
+        }
+
+        private void OpenSettings()
+        {
+            using (var settings = new SettingsForm(appSettings, ApplySettings,
+                () => CheckUpdatesAsync(true)))
+                settings.ShowDialog(this);
+        }
+
+        private void ApplySettings(AppSettings updated)
+        {
+            appSettings = updated;
+            ThemeManager.Apply(this, appSettings.Theme);
+            WriteLog("设置已保存；主题：" +
+                (appSettings.Theme == VisualTheme.Neumorphic ? "拟态悬浮" : "克制玻璃") + "。");
+        }
+
+        private async Task CheckUpdatesAsync(bool userInitiated)
+        {
+            bool restartScheduled = false;
+            try
+            {
+                if (userInitiated)
+                {
+                    SetBusy(true, "正在检查软件更新……");
+                    SetStatusDetail("连接 GitHub Releases，通常几秒钟完成");
+                }
+
+                UpdateInfo latest = await Task.Run(() => UpdateService.CheckLatest());
+                WriteLog("更新检查：本机 v" + ProductInfo.Version + "；最新 v" + latest.Version + "。");
+                if (!latest.IsNewerThan(ProductInfo.Version))
+                {
+                    if (userInitiated)
+                        MessageBox.Show("当前已经是最新版 v" + ProductInfo.Version + "。",
+                            "检查更新", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                else if (!appSettings.AutoDownloadUpdates)
+                {
+                    DialogResult open = MessageBox.Show(
+                        "发现新版 v" + latest.Version + "。\n\n是否打开 GitHub 发布页？",
+                        "发现新版本", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+                    if (open == DialogResult.Yes)
+                        Process.Start(latest.ReleaseUrl);
+                }
+                else
+                {
+                    SetBusy(true, "正在安全下载 v" + latest.Version + "……");
+                    SetStatusDetail("下载后会核对 GitHub 提供的 SHA-256，不会直接覆盖");
+                    string downloaded = await Task.Run(() => UpdateService.DownloadAndVerify(latest));
+                    WriteLog("新版已下载并通过 SHA-256 校验：" + downloaded);
+                    DialogResult install = MessageBox.Show(
+                        "v" + latest.Version + " 已下载并通过 SHA-256 校验。\n\n" +
+                        "安装只会关闭恢复中心，不会关闭 Codex。是否现在更新并重新打开？",
+                        "安全更新已就绪", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+                    if (install == DialogResult.Yes)
+                    {
+                        restartScheduled = true;
+                        UpdateService.ScheduleReplaceAndRestart(downloaded);
+                        Application.Exit();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                WriteLog("检查更新失败：" + ex.Message);
+                if (userInitiated)
+                    MessageBox.Show("暂时无法完成更新检查。\n\n" + ex.Message,
+                        "检查更新失败", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            if (!restartScheduled && !IsDisposed)
+                await CheckAsync();
         }
 
         private void LayoutSecondaryButtons()
@@ -608,11 +806,12 @@ namespace CodexRecoveryCenter
                 return;
             }
             checkButton.Enabled = safeButton.Enabled = repairButton.Enabled = storeButton.Enabled = !busy;
+            settingsButton.Enabled = aboutButton.Enabled = !busy;
             progress.Style = busy ? ProgressBarStyle.Marquee : ProgressBarStyle.Blocks;
             progress.Visible = busy;
             statusTitle.Text = text;
             statusDetail.Text = busy ? "请不要重复点击，Windows 可能需要一点时间" : statusDetail.Text;
-            statusDot.ForeColor = busy ? Amber : statusDot.ForeColor;
+            statusDot.ForeColor = busy ? CurrentPalette.Warning : statusDot.ForeColor;
         }
 
         private void SetStatusDetail(string text)
@@ -634,7 +833,7 @@ namespace CodexRecoveryCenter
             statusDetail.Text = state.IsOk
                 ? (running ? "安装正常，Codex 当前正在运行" : "安装正常，需要时可以直接启动")
                 : "Windows 检测到安装注册异常，建议立即恢复";
-            statusDot.ForeColor = state.IsOk ? Sage : Red;
+            statusDot.ForeColor = state.IsOk ? CurrentPalette.Accent : CurrentPalette.Danger;
             SetBusy(false, state.IsOk ? "现在状态正常" : "需要修复");
         }
 
@@ -656,7 +855,7 @@ namespace CodexRecoveryCenter
             });
             WriteLog(launched ? "已发送 GPU 安全模式启动命令。" : "安全启动失败：安装包状态不是 Ok。");
             statusDetail.Text = launched ? "已关闭 GPU 加速，用来降低多窗口崩溃风险" : "安装状态异常，先进行恢复";
-            statusDot.ForeColor = launched ? Sage : Red;
+            statusDot.ForeColor = launched ? CurrentPalette.Accent : CurrentPalette.Danger;
             SetBusy(false, launched ? "安全模式已启动" : "请执行一键恢复");
         }
 
@@ -719,7 +918,7 @@ namespace CodexRecoveryCenter
                 if (!state.IsOk)
                 {
                     statusDetail.Text = "处理记录已保留，可继续使用微软商店官方修复";
-                    statusDot.ForeColor = Red;
+                    statusDot.ForeColor = CurrentPalette.Danger;
                     SetBusy(false, "自动恢复尚未完成");
                     WriteLog("最终状态仍为：" + state.Status);
                     BeginInvoke(new Action(() =>
@@ -735,7 +934,7 @@ namespace CodexRecoveryCenter
                 bool launched = RecoveryEngine.LaunchSafe(state);
                 WriteLog(launched ? "修复完成，已启动。" : "包已恢复，但启动命令失败。");
                 statusDetail.Text = launched ? "安装状态已恢复，并用更稳妥的模式重新启动" : "安装已恢复，可以再次启动";
-                statusDot.ForeColor = Sage;
+                statusDot.ForeColor = CurrentPalette.Accent;
                 SetBusy(false, launched ? "恢复完成" : "安装已恢复");
             });
         }
