@@ -7,6 +7,9 @@
 - 桌面快捷方式目标指向发布 EXE。
 - GUI 真实启动并自动写入状态日志。
 - 源码不包含 `Reset-AppxPackage` 或 `--ignore-certificate-errors`。
+- 1.1.0 x64 构建成功，GUI 真实启动并正确显示“现在状态正常”。
+- 1.1.0 `--self-test` 通过：包状态 `Ok`、官方 EXE 与 winget 均存在。
+- 主界面处理记录默认折叠，正常、异常、忙碌状态具有不同视觉反馈。
 
 未执行：
 
