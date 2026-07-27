@@ -1,14 +1,14 @@
 ﻿{
     "project":  "codex-recovery-center",
-    "version":  "1.4.1",
-    "source_commit":  "9519511e1a52cefafc241176d0beb735c71fa4e5",
+    "version":  "1.5.0",
+    "source_commit":  "511cfe6871e7d044dae24afa7b8ea74bf201a7ba",
     "build_date":  "2026-07-27",
     "platform":  "Windows x64 / .NET Framework WinForms",
     "artifacts":  [
                       {
-                          "file":  "Codex-Recovery-Center-v1.4.1.exe",
-                          "sha256":  "CC155FB22771ED8ABDFDF1F1ECBAE23D53C09D7925A53D11E29D61604E62E17B",
-                          "bytes":  112128
+                          "file":  "Codex-Recovery-Center-v1.5.0.exe",
+                          "sha256":  "88B6E2B17646175C5141E909641A5ECA711C61D8CDDBA4FC9F258782C5B03428",
+                          "bytes":  115712
                       }
                   ],
     "known_limitations":  [
