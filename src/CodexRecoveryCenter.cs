@@ -174,7 +174,17 @@ namespace CodexRecoveryCenter
         public string Name = "";
         public int Count;
         public double CommitMb;
+        public bool IsCodex;
         public List<int> Ids = new List<int>();
+
+        public string DisplayText
+        {
+            get
+            {
+                return Name + "  ×" + Count + "　—　" + CommitMb.ToString("F0") + " MB" +
+                    (IsCodex ? "　（Codex 本体）" : "");
+            }
+        }
     }
 
     internal static class RecoveryEngine
@@ -309,17 +319,32 @@ namespace CodexRecoveryCenter
                         info.Time = entry.TimeGenerated;
                         info.App = Path.GetFileName(parts[0]);
                         info.ExceptionCode = parts[6];
-                        if (info.ExceptionCode.IndexOf("c0000409", StringComparison.OrdinalIgnoreCase) >= 0)
-                            info.Kind = DesktopLogsShowOom(info.Time)
-                                ? CrashKind.OutOfMemory : CrashKind.Abort;
-                        else
-                            info.Kind = CrashKind.Other;
+                        info.Kind = Classify(info.ExceptionCode, info.Time);
                         break;
                     }
                 }
             }
             catch { }
             return info;
+        }
+
+        private static readonly string[] OutOfMemoryCodes =
+        {
+            "e0000008", // Chromium kOomExceptionCode：ChatGPT.exe 宿主内存耗尽
+            "c0000017", // STATUS_NO_MEMORY
+            "c00000fd"  // STATUS_STACK_OVERFLOW，内存压力下的常见伴随失败
+        };
+
+        private static CrashKind Classify(string code, DateTime when)
+        {
+            foreach (string oom in OutOfMemoryCodes)
+                if (code.IndexOf(oom, StringComparison.OrdinalIgnoreCase) >= 0)
+                    return CrashKind.OutOfMemory;
+            if (DesktopLogsShowOom(when))
+                return CrashKind.OutOfMemory;
+            if (code.IndexOf("c0000409", StringComparison.OrdinalIgnoreCase) >= 0)
+                return CrashKind.Abort;
+            return CrashKind.Other;
         }
 
         private static bool DesktopLogsShowOom(DateTime around)
@@ -403,7 +428,12 @@ namespace CodexRecoveryCenter
                         continue;
                     ProcessGroup group;
                     if (!groups.TryGetValue(name, out group))
-                        groups[name] = group = new ProcessGroup { Name = name };
+                        groups[name] = group = new ProcessGroup
+                        {
+                            Name = name,
+                            IsCodex = name.Equals("ChatGPT", StringComparison.OrdinalIgnoreCase) ||
+                                name.Equals("codex", StringComparison.OrdinalIgnoreCase)
+                        };
                     group.Count++;
                     group.CommitMb += commit / (1024.0 * 1024.0);
                     group.Ids.Add(process.Id);
@@ -424,12 +454,18 @@ namespace CodexRecoveryCenter
             foreach (ProcessGroup group in groups)
             {
                 int closed = 0;
+                int skipped = 0;
                 foreach (int id in group.Ids)
                 {
                     try
                     {
                         using (Process process = Process.GetProcessById(id))
                         {
+                            if (!process.ProcessName.Equals(group.Name, StringComparison.OrdinalIgnoreCase))
+                            {
+                                skipped++;
+                                continue;
+                            }
                             long commit = process.PagedMemorySize64;
                             process.Kill();
                             process.WaitForExit(4000);
@@ -437,10 +473,11 @@ namespace CodexRecoveryCenter
                             closed++;
                         }
                     }
-                    catch { }
+                    catch { skipped++; }
                 }
                 if (progress != null)
-                    progress("已关闭 " + group.Name + " ×" + closed + "。");
+                    progress("已关闭 " + group.Name + " ×" + closed +
+                        (skipped > 0 ? "（跳过 " + skipped + " 个已退出或已变化的进程）" : "") + "。");
             }
             return freedMb;
         }

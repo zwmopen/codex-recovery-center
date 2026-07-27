@@ -10,6 +10,13 @@ using System.Windows.Forms;
 
 namespace CodexRecoveryCenter
 {
+    internal enum StatusLevel
+    {
+        Normal,
+        Caution,
+        Alarm
+    }
+
     internal sealed class MainForm : ThemedForm
     {
         private readonly Label statusTitle;
@@ -27,9 +34,8 @@ namespace CodexRecoveryCenter
         private readonly string sessionLog;
         private readonly StringBuilder logBuffer = new StringBuilder();
         private AppSettings appSettings;
-        private bool lastPackageOk = true;
-        private bool lastMemoryHigh;
         private bool lastCrashOom;
+        private StatusLevel lastLevel = StatusLevel.Normal;
 
         public MainForm()
         {
@@ -118,10 +124,14 @@ namespace CodexRecoveryCenter
             statusTitle = MakeLabel(
                 "正在检查当前状态", 66, 27, 13F, FontStyle.Bold, "title");
             statusDetail = MakeLabel(
-                "通常几秒钟就能完成", 68, 59, 9.5F, FontStyle.Regular, "muted");
+                "通常几秒钟就能完成", 68, 57, 9.5F, FontStyle.Regular, "muted");
+            statusDetail.AutoSize = false;
+            statusDetail.Height = 46;
+            statusDetail.UseMnemonic = false;
+            statusDetail.TextAlign = ContentAlignment.TopLeft;
             progress = new ProgressBar
             {
-                Location = new Point(68, 89),
+                Location = new Point(68, 107),
                 Width = 400,
                 Height = 5,
                 Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
@@ -147,7 +157,12 @@ namespace CodexRecoveryCenter
                 step1, step2, step3, safety, logButton
             });
             statusCard.Layout += (s, e) =>
+            {
                 logButton.Top = statusCard.ClientSize.Height - logButton.Height - 16;
+                statusDetail.Width = Math.Max(
+                    160, statusCard.ClientSize.Width - statusDetail.Left - 40);
+                progress.Width = statusDetail.Width;
+            };
 
             var actions = new TableLayoutPanel
             {
@@ -290,12 +305,32 @@ namespace CodexRecoveryCenter
                 settings.ShowDialog(this);
         }
 
+        private Color DotColor(StatusLevel level)
+        {
+            switch (level)
+            {
+                case StatusLevel.Alarm: return CurrentPalette.Danger;
+                case StatusLevel.Caution: return CurrentPalette.Warning;
+                default: return CurrentPalette.Accent;
+            }
+        }
+
+        private void SetLevel(StatusLevel level)
+        {
+            if (InvokeRequired)
+            {
+                BeginInvoke(new Action<StatusLevel>(SetLevel), level);
+                return;
+            }
+            lastLevel = level;
+            statusDot.ForeColor = DotColor(level);
+        }
+
         private void ApplySettings(AppSettings updated)
         {
             appSettings = updated;
             ThemeManager.Apply(this, appSettings.Theme);
-            statusDot.ForeColor = !lastPackageOk ? CurrentPalette.Danger :
-                lastMemoryHigh ? CurrentPalette.Warning : CurrentPalette.Accent;
+            statusDot.ForeColor = DotColor(lastLevel);
             WriteLog("设置已保存；主题：" +
                 (appSettings.Theme == VisualTheme.Neumorphic ? "拟态悬浮" : "克制玻璃") + "。");
         }
@@ -350,8 +385,6 @@ namespace CodexRecoveryCenter
             CrashInfo crash = await crashTask;
             MemoryState memory = RecoveryEngine.GetMemoryState();
             bool running = RecoveryEngine.IsCodexRunning();
-            lastPackageOk = state.IsOk;
-            lastMemoryHigh = memory.IsHighPressure;
             lastCrashOom = crash.Found && crash.Kind == CrashKind.OutOfMemory;
             WriteLog("安装状态：" + state.Status + "；正在运行：" + (running ? "是" : "否"));
             WriteLog(crash.Found
@@ -364,41 +397,39 @@ namespace CodexRecoveryCenter
 
             string title;
             string detail;
-            Color dot;
             if (!state.IsOk)
             {
                 title = "需要修复";
-                detail = "Windows 检测到安装注册异常，建议立即恢复";
-                dot = CurrentPalette.Danger;
+                detail = "安装注册异常，建议立即恢复";
+                lastLevel = StatusLevel.Alarm;
             }
             else if (memory.IsCritical)
             {
                 title = "内存告急，随时可能再崩";
-                detail = "可用提交内存只剩 " + memory.AvailableVirtualGb.ToString("F1") +
-                    " GB；点「释放内存」马上腾出空间";
-                dot = CurrentPalette.Danger;
+                detail = "可用内存只剩 " + memory.AvailableVirtualGb.ToString("F1") +
+                    " GB，请点「释放内存」";
+                lastLevel = StatusLevel.Alarm;
             }
             else if (crash.IsRecent && crash.Kind == CrashKind.OutOfMemory)
             {
                 title = "安装正常，上次崩溃是内存耗尽";
-                detail = "修复安装对这类崩溃无效；点「释放内存」更有用";
-                dot = CurrentPalette.Warning;
+                detail = "修复安装无效，请点「释放内存」";
+                lastLevel = StatusLevel.Caution;
             }
             else if (memory.IsHighPressure)
             {
                 title = "安装正常，但内存压力很高";
-                detail = "虚拟内存只剩 " + memory.AvailableVirtualGb.ToString("F1") +
-                    " GB；多开程序容易再次崩溃";
-                dot = CurrentPalette.Warning;
+                detail = "可用内存 " + memory.AvailableVirtualGb.ToString("F1") +
+                    " GB，多开容易再崩";
+                lastLevel = StatusLevel.Caution;
             }
             else
             {
                 title = "现在状态正常";
-                detail = running ? "安装正常，Codex 当前正在运行" :
-                    "安装正常，需要时可以直接启动";
-                dot = CurrentPalette.Accent;
+                detail = running ? "Codex 当前正在运行" : "需要时可以直接启动";
+                lastLevel = StatusLevel.Normal;
             }
-            statusDot.ForeColor = dot;
+            SetLevel(lastLevel);
             SetBusy(false, title, detail);
         }
 
@@ -421,10 +452,10 @@ namespace CodexRecoveryCenter
             });
             WriteLog(launched ? "已发送 GPU 安全模式启动命令。" :
                 "安全启动失败：安装包状态不是 Ok。");
-            statusDot.ForeColor = launched ? CurrentPalette.Accent : CurrentPalette.Danger;
+            SetLevel(launched ? StatusLevel.Normal : StatusLevel.Alarm);
             SetBusy(false,
                 launched ? "安全模式已启动" : "请先执行一键恢复",
-                launched ? "已关闭 GPU 加速，用来降低多窗口崩溃风险" :
+                launched ? "已关闭 GPU 加速，降低崩溃风险" :
                     "安装状态异常，先恢复后再启动");
         }
 
@@ -463,11 +494,11 @@ namespace CodexRecoveryCenter
                 if (!state.IsOk)
                 {
                     SetBusy(true, "正在从微软商店恢复",
-                        "Windows 正在重新校验程序包，通常需要 2–4 分钟");
+                        "正在重新校验程序包，约 2–4 分钟");
                     int lastReported = -1;
                     CommandResult store = RecoveryEngine.RestageFromMicrosoftStore(elapsed =>
                     {
-                        SetStatusDetail("微软商店处理中：已用 " + elapsed + " 秒（通常需要 2–4 分钟）");
+                        SetStatusDetail("微软商店处理中：已用 " + elapsed + " 秒");
                         if (elapsed >= 15 && elapsed / 15 != lastReported)
                         {
                             lastReported = elapsed / 15;
@@ -483,9 +514,9 @@ namespace CodexRecoveryCenter
 
                 if (!state.IsOk)
                 {
-                    statusDot.ForeColor = CurrentPalette.Danger;
+                    SetLevel(StatusLevel.Alarm);
                     SetBusy(false, "自动恢复尚未完成",
-                        "处理记录已经保留，可继续使用微软商店官方修复");
+                        "已保留记录，可用微软商店修复");
                     BeginInvoke(new Action(() => MessageBox.Show(
                         "自动恢复尚未把状态恢复为 Ok。\n请点击“微软商店修复”完成更新。",
                         "仍需商店处理", MessageBoxButtons.OK, MessageBoxIcon.Error)));
@@ -495,7 +526,7 @@ namespace CodexRecoveryCenter
                 WriteLog("包状态已经恢复为 Ok，启动 GPU 安全模式。");
                 bool launched = RecoveryEngine.LaunchSafe(state);
                 WriteLog(launched ? "修复完成，已启动。" : "包已恢复，但启动命令失败。");
-                statusDot.ForeColor = CurrentPalette.Accent;
+                SetLevel(StatusLevel.Normal);
                 SetBusy(false, launched ? "恢复完成" : "安装已经恢复",
                     launched ? "已经用更稳妥的模式重新启动" : "现在可以再次启动");
             });
@@ -665,8 +696,7 @@ namespace CodexRecoveryCenter
             groups = RecoveryEngine.GetTopCommitGroups(12);
             list.Items.Clear();
             foreach (ProcessGroup group in groups)
-                list.Items.Add(group.Name + "  ×" + group.Count + "　—　" +
-                    group.CommitMb.ToString("F0") + " MB");
+                list.Items.Add(group.DisplayText);
             MemoryState memory = RecoveryEngine.GetMemoryState();
             summary.Text = "可用提交内存 " + memory.AvailableVirtualGb.ToString("F1") +
                 " GB / 共 " + memory.TotalVirtualGb.ToString("F1") +
@@ -689,10 +719,13 @@ namespace CodexRecoveryCenter
             double totalMb = selected.Sum(group => group.CommitMb);
             string names = String.Join("、", selected.Select(group =>
                 group.Name + " ×" + group.Count));
+            string codexNote = selected.Any(group => group.IsCodex)
+                ? "\n\n其中包含 Codex 本体；关闭后可用「安全模式启动」重新打开。"
+                : "";
             DialogResult answer = MessageBox.Show(
                 "将关闭：" + names + "\n合计约 " +
                 (totalMb / 1024.0).ToString("F1") + " GB。\n\n" +
-                "这些程序里未保存的内容会丢失。确定关闭？",
+                "这些程序里未保存的内容会丢失。确定关闭？" + codexNote,
                 "确认关闭", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
             if (answer != DialogResult.Yes)
                 return;

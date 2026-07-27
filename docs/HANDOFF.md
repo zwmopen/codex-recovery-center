@@ -11,7 +11,16 @@
 - 1.3.0 已按用户真实项目视觉重做：默认冷灰蓝拟态悬浮，可切换克制玻璃；设置、关于和日志均使用同一视觉系统。
 - 1.3.1 嵌入正式多尺寸图标并启用 Per-Monitor DPI 感知；小按钮移除硬阴影和矩形底块，文字与圆角在高缩放屏幕下已实际截图验证。
 - 1.3.2 增加全局单实例锁和虚拟内存压力探针；第二次启动会退出并唤醒已有窗口，主界面会在提交压力高时显示橙色提醒。
-- 1.4.0 增加崩溃分诊与“释放内存”。分诊用原生 EventLog 读取 Application 日志（源 `Application Error`、事件 1000、路径含 `OpenAI.Codex`），`0xc0000409` 且桌面日志（`%LOCALAPPDATA%\Packages\OpenAI.Codex_2p2nqsd0c76g0\LocalCache\Local\Codex\Logs`）出现 `memory allocation of` 判定为内存耗尽。释放内存按进程名分组取提交内存前 12 名，硬编码保护系统关键进程与自身。已在 2026-07-27 自检中用真实数据验证（09:57 崩溃判定 OutOfMemory；claude×23≈6.3GB 正确列为大户第一名）。
+- 1.4.0 增加崩溃分诊与“释放内存”。分诊用原生 EventLog 读取 Application 日志（源 `Application Error`、事件 1000、`ReplacementStrings[10]` 即故障应用路径含 `OpenAI.Codex`）。释放内存按进程名分组取提交内存前 12 名，硬编码保护系统关键进程与自身，关闭前二次核对进程名。已在 2026-07-27 08:24 自检中用真实数据验证（`ChatGPT.exe / e0000008` 判定 OutOfMemory；claude×17≈4.1GB 列为大户第一名）。
+
+## 崩溃分诊判定顺序（不要改回只认单一异常码）
+
+1. 异常码命中 `e0000008`（Chromium OOM）、`c0000017`、`c00000fd` → 内存耗尽。
+2. 否则读桌面日志 `%LOCALAPPDATA%\Packages\OpenAI.Codex_2p2nqsd0c76g0\LocalCache\Local\Codex\Logs\yyyy\MM\dd\*.log`，出现 `memory allocation of` → 内存耗尽。
+3. 否则异常码含 `c0000409` → 程序中止。
+4. 否则其他异常。
+
+本机同时存在两条真实崩溃路径：`codex.exe` 的 `c0000409`（Rust 分配失败）与 `ChatGPT.exe` 的 `e0000008`（Electron 宿主 OOM）。1.4.0 的初版只认 `c0000409`，把当天最新的两次 `e0000008` 误判为“其他异常”，已在发布前修正。
 - 设置已持久化，更新区只显示“检查版本”；自动发现和安全下载使用产品默认行为，替换前必须确认。
 - 更新链路使用最新 Release 随附的公开清单和 SHA-256；下载后仍需用户确认才替换并重启，不嵌入 GitHub Token。
 - 不在当前活跃 Codex 会话中执行破坏性恢复按钮，避免主动断开任务。
