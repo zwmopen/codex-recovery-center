@@ -13,6 +13,7 @@
 - 1.3.2 增加全局单实例锁和虚拟内存压力探针；第二次启动会退出并唤醒已有窗口，主界面会在提交压力高时显示橙色提醒。
 - 1.4.0 增加崩溃分诊与“释放内存”。分诊用原生 EventLog 读取 Application 日志（源 `Application Error`、事件 1000、`ReplacementStrings[10]` 即故障应用路径含 `OpenAI.Codex`）。释放内存按进程名分组取提交内存前 12 名，硬编码保护系统关键进程与自身，关闭前二次核对进程名。已在 2026-07-27 08:24 自检中用真实数据验证（`ChatGPT.exe / e0000008` 判定 OutOfMemory；claude×17≈4.1GB 列为大户第一名）。
 - 1.4.1 补齐 Windows EXE 文件版本元数据；构建脚本自动生成通用桌面成品、版本化发布包与 SHA-256 清单，降低手工发布错配风险。
+- 1.4.0 与 1.4.1 已补齐 GitHub Release；1.4.1 为 Latest，附件包含 `Codex-Recovery-Center-v1.4.1.exe` 与 `manifest.json`。程序端 `--update-self-test` 已真实读取在线清单、下载 EXE 并通过 SHA-256。
 
 ## 崩溃分诊判定顺序（不要改回只认单一异常码）
 
@@ -49,6 +50,7 @@
 - 桌面：`C:\Users\z\Desktop\Codex 恢复中心.lnk`
 - 本地数据：`C:\Users\z\AppData\Local\CodexRecoveryCenter`
 - 远程仓库：`https://github.com/zwmopen/codex-recovery-center`
+- 最新发布：`https://github.com/zwmopen/codex-recovery-center/releases/tag/v1.4.1`
 
 ## 恢复算法
 
@@ -80,8 +82,9 @@ GitHub API 匿名访问曾在真实测试中返回 403；Raw 分支地址在推�
 ## 当前验收与剩余边界
 
 - x64 WinForms 构建、正常状态自检、双主题切换、设置保存、设置页、关于页和日志页已验证。
-- 更新自检须验证：读取 Latest Release 清单、下载同版本 EXE、SHA-256 一致。
-- 发布后须再次验证“本机版本 = 在线版本”，并下载校验正式文件。
+- 1.4.1 Windows 文件版本、产品版本、产品名称、版本化成品与清单生成均已验证。
+- 1.4.0、1.4.1 GitHub Release 均已发布；1.4.1 在线清单、同版本 EXE 下载和 SHA-256 已真实验证一致。
+- 打包 EXE 可打开，单实例回归通过；桌面快捷方式指向最新通用成品。
 - 真正的自替换安装需在后续有新版时做一次端到端回归；当前下载、校验和调度路径已具备。
 - 显卡驱动和 Codex 自身 GPU 崩溃仍需厂商更新；恢复中心不能修补第三方二进制。
 

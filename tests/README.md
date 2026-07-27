@@ -4,6 +4,11 @@
 
 - Windows 文件属性中的文件版本、产品版本均为 `1.4.1.0`，产品名称为“Codex 恢复中心”。
 - 构建脚本一次生成 `Codex-Recovery-Center.exe`、`Codex-Recovery-Center-v1.4.1.exe` 和与成品 SHA-256 一致的 `manifest.json`。
+- 本地自检读取到包状态 `Ok`、官方 EXE 存在、最近一次 `ChatGPT.exe / e0000008` 被判定为 `OutOfMemory`；验收时提交压力约 73%，未达到高压阈值。
+- GitHub Release `v1.4.0` 与 `v1.4.1` 均已发布，分别包含对应版本 EXE 与 `manifest.json`。
+- `--update-self-test` 已从在线 Latest Release 读到 `1.4.1`、下载正式 EXE 并通过 SHA-256；在线下载哈希与清单一致。
+- 打包 EXE 主窗口可正常打开；连续启动两次时实际进程数保持为 1，第二个实例正常退出。
+- 桌面 `Codex 恢复中心.lnk` 指向本次构建的通用正式 EXE。
 
 ## 1.4.0 已通过
 
