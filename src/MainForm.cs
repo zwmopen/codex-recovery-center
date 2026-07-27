@@ -35,6 +35,7 @@ namespace CodexRecoveryCenter
         private readonly StringBuilder logBuffer = new StringBuilder();
         private AppSettings appSettings;
         private bool lastCrashOom;
+        private bool lastCrashGpuRenderer;
         private StatusLevel lastLevel = StatusLevel.Normal;
 
         public MainForm()
@@ -386,11 +387,15 @@ namespace CodexRecoveryCenter
             MemoryState memory = RecoveryEngine.GetMemoryState();
             bool running = RecoveryEngine.IsCodexRunning();
             lastCrashOom = crash.Found && crash.Kind == CrashKind.OutOfMemory;
+            lastCrashGpuRenderer = crash.Found && crash.Kind == CrashKind.GpuRenderer;
             WriteLog("安装状态：" + state.Status + "；正在运行：" + (running ? "是" : "否"));
             WriteLog(crash.Found
                 ? "最近一次 Codex 崩溃：" + crash.Time.ToString("MM-dd HH:mm") + "，" +
                     crash.App + "，异常码 " + crash.ExceptionCode +
-                    "，判定：" + crash.KindText + "。"
+                    "，判定：" + crash.KindText +
+                    (String.IsNullOrEmpty(crash.ConversationId)
+                        ? "。"
+                        : "，触发会话 " + crash.ConversationId + "。")
                 : "事件日志里没有近期 Codex 崩溃记录。");
             WriteLog("虚拟内存可用：" + memory.AvailableVirtualGb.ToString("F1") +
                 " GB；提交压力：" + memory.CommitPressurePercent.ToString("F0") + "%。");
@@ -414,6 +419,18 @@ namespace CodexRecoveryCenter
             {
                 title = "安装正常，上次崩溃是内存耗尽";
                 detail = "修复安装无效，请点「释放内存」";
+                lastLevel = StatusLevel.Caution;
+            }
+            else if (crash.IsRecent && crash.Kind == CrashKind.GpuRenderer)
+            {
+                title = "安装正常，上次是 GPU / 会话渲染崩溃";
+                detail = String.IsNullOrEmpty(crash.ConversationId)
+                    ? "请先用「安全模式启动」，避免立即恢复旧网页状态"
+                    : "触发会话 " +
+                        (crash.ConversationId.Length > 8
+                            ? crash.ConversationId.Substring(0, 8) + "…"
+                            : crash.ConversationId) +
+                        "；先归档它，再用安全模式启动";
                 lastLevel = StatusLevel.Caution;
             }
             else if (memory.IsHighPressure)
@@ -477,6 +494,9 @@ namespace CodexRecoveryCenter
                 if (state.IsOk && lastCrashOom)
                     WriteLog("安装状态正常，而最近一次崩溃是内存耗尽；" +
                         "修复安装防不住这类崩溃，建议使用「释放内存」。");
+                if (state.IsOk && lastCrashGpuRenderer)
+                    WriteLog("安装状态正常，而最近一次是 GPU / 会话渲染崩溃；" +
+                        "不需要重新下载安装，恢复后将使用 GPU 安全模式启动。");
 
                 if (!state.IsOk)
                 {

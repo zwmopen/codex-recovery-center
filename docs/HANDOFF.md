@@ -1,7 +1,7 @@
 # 开发交接
 
 最后核对：2026-07-27  
-当前版本：1.4.1
+当前版本：1.5.0
 
 ## 当前状态
 
@@ -13,14 +13,17 @@
 - 1.3.2 增加全局单实例锁和虚拟内存压力探针；第二次启动会退出并唤醒已有窗口，主界面会在提交压力高时显示橙色提醒。
 - 1.4.0 增加崩溃分诊与“释放内存”。分诊用原生 EventLog 读取 Application 日志（源 `Application Error`、事件 1000、`ReplacementStrings[10]` 即故障应用路径含 `OpenAI.Codex`）。释放内存按进程名分组取提交内存前 12 名，硬编码保护系统关键进程与自身，关闭前二次核对进程名。已在 2026-07-27 08:24 自检中用真实数据验证（`ChatGPT.exe / e0000008` 判定 OutOfMemory；claude×17≈4.1GB 列为大户第一名）。
 - 1.4.1 补齐 Windows EXE 文件版本元数据；构建脚本自动生成通用桌面成品、版本化发布包与 SHA-256 清单，降低手工发布错配风险。
-- 1.4.0 与 1.4.1 已补齐 GitHub Release；1.4.1 为 Latest，附件包含 `Codex-Recovery-Center-v1.4.1.exe` 与 `manifest.json`。程序端 `--update-self-test` 已真实读取在线清单、下载 EXE 并通过 SHA-256。
+- 1.5.0 增加 GPU / 会话渲染崩溃分诊。2026-07-27 16:16 的真实事件已回归：目标会话恢复后出现 `Conversation state not found`，随后 Chromium GPU `101457950 / crashed`，再出现 `18 / launch-failed`。自检准确关联会话 UUID。
+- 目标超大会话 `019f73cf-dc79-7be2-90c5-86fdbf88f459` 已改名为“⚠ 超大会话已归档｜手机分享中控｜请勿直接打开”并归档；内容可后台读取，不能从界面直接重开。
+- 1.4.0 与 1.4.1 已补齐 GitHub Release；1.5.0 发布完成后更新本节的 Latest 地址与在线验收结果。
 
 ## 崩溃分诊判定顺序（不要改回只认单一异常码）
 
-1. 异常码命中 `e0000008`（Chromium OOM）、`c0000017`、`c00000fd` → 内存耗尽。
-2. 否则读桌面日志 `%LOCALAPPDATA%\Packages\OpenAI.Codex_2p2nqsd0c76g0\LocalCache\Local\Codex\Logs\yyyy\MM\dd\*.log`，出现 `memory allocation of` → 内存耗尽。
-3. 否则异常码含 `c0000409` → 程序中止。
-4. 否则其他异常。
+1. 分别读取 Windows Application Error 与 Codex 桌面日志，最后选择时间更新的真实故障。
+2. 桌面日志出现 Chromium GPU `crashed` / `launch-failed` → GPU / 会话渲染崩溃；关联十分钟内最后激活的会话 ID，`Conversation state not found` 在两分钟内出现时优先关联该会话。
+3. Application Error 异常码命中 `e0000008`（Chromium OOM）、`c0000017`、`c00000fd` → 内存耗尽。
+4. 否则读同日桌面日志，出现 `memory allocation of` → 内存耗尽。
+5. 否则异常码含 `c0000409` → 程序中止；其余为其他异常。
 
 本机同时存在两条真实崩溃路径：`codex.exe` 的 `c0000409`（Rust 分配失败）与 `ChatGPT.exe` 的 `e0000008`（Electron 宿主 OOM）。1.4.0 的初版只认 `c0000409`，把当天最新的两次 `e0000008` 误判为“其他异常”，已在发布前修正。
 - 设置已持久化，更新区只显示“检查版本”；自动发现和安全下载使用产品默认行为，替换前必须确认。
@@ -50,7 +53,7 @@
 - 桌面：`C:\Users\z\Desktop\Codex 恢复中心.lnk`
 - 本地数据：`C:\Users\z\AppData\Local\CodexRecoveryCenter`
 - 远程仓库：`https://github.com/zwmopen/codex-recovery-center`
-- 最新发布：`https://github.com/zwmopen/codex-recovery-center/releases/tag/v1.4.1`
+- 最新发布：发布 1.5.0 后更新
 
 ## 恢复算法
 
@@ -82,7 +85,7 @@ GitHub API 匿名访问曾在真实测试中返回 403；Raw 分支地址在推�
 ## 当前验收与剩余边界
 
 - x64 WinForms 构建、正常状态自检、双主题切换、设置保存、设置页、关于页和日志页已验证。
-- 1.4.1 Windows 文件版本、产品版本、产品名称、版本化成品与清单生成均已验证。
+- 1.5.0 Windows 文件版本、产品版本、真实 GPU 崩溃识别和触发会话关联均已验证。
 - 1.4.0、1.4.1 GitHub Release 均已发布；1.4.1 在线清单、同版本 EXE 下载和 SHA-256 已真实验证一致。
 - 打包 EXE 可打开，单实例回归通过；桌面快捷方式指向最新通用成品。
 - 真正的自替换安装需在后续有新版时做一次端到端回归；当前下载、校验和调度路径已具备。

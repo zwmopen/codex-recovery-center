@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -137,6 +138,7 @@ namespace CodexRecoveryCenter
     {
         Unknown,
         OutOfMemory,
+        GpuRenderer,
         Abort,
         Other
     }
@@ -147,6 +149,8 @@ namespace CodexRecoveryCenter
         public DateTime Time;
         public string App = "";
         public string ExceptionCode = "";
+        public string ConversationId = "";
+        public string Detail = "";
         public CrashKind Kind = CrashKind.Unknown;
 
         public bool IsRecent
@@ -161,6 +165,7 @@ namespace CodexRecoveryCenter
                 switch (Kind)
                 {
                     case CrashKind.OutOfMemory: return "内存耗尽";
+                    case CrashKind.GpuRenderer: return "GPU / 会话渲染崩溃";
                     case CrashKind.Abort: return "程序中止（多为资源不足）";
                     case CrashKind.Other: return "其他异常";
                     default: return "未知";
@@ -294,6 +299,13 @@ namespace CodexRecoveryCenter
 
         public static CrashInfo GetLastCodexCrash()
         {
+            CrashInfo info = GetLastApplicationCrash();
+            CrashInfo gpu = GetLastGpuRendererCrash();
+            return gpu.Found && (!info.Found || gpu.Time > info.Time) ? gpu : info;
+        }
+
+        private static CrashInfo GetLastApplicationCrash()
+        {
             var info = new CrashInfo();
             try
             {
@@ -328,6 +340,102 @@ namespace CodexRecoveryCenter
             return info;
         }
 
+        private static CrashInfo GetLastGpuRendererCrash()
+        {
+            var newest = new CrashInfo();
+            try
+            {
+                string root = GetDesktopLogRoot();
+                if (!Directory.Exists(root))
+                    return newest;
+
+                IEnumerable<string> files = Directory.GetFiles(root, "*.log", SearchOption.AllDirectories)
+                    .OrderByDescending(File.GetLastWriteTime)
+                    .Take(24);
+                foreach (string file in files)
+                {
+                    string text = ReadTail(file, 2 * 1024 * 1024);
+                    if (String.IsNullOrEmpty(text) ||
+                        text.IndexOf("processType=GPU", StringComparison.OrdinalIgnoreCase) < 0)
+                        continue;
+
+                    string activeConversation = "";
+                    DateTime activeTime = DateTime.MinValue;
+                    string missingConversation = "";
+                    DateTime missingTime = DateTime.MinValue;
+                    foreach (string line in text.Split(new[] { '\r', '\n' },
+                        StringSplitOptions.RemoveEmptyEntries))
+                    {
+                        DateTime lineTime;
+                        if (!TryParseDesktopLogTime(line, out lineTime))
+                            continue;
+
+                        if (line.IndexOf("thread_stream_view_activity_changed active=true",
+                                StringComparison.OrdinalIgnoreCase) >= 0)
+                        {
+                            activeConversation = ExtractLogValue(line, "conversationId");
+                            activeTime = lineTime;
+                            continue;
+                        }
+
+                        if (line.IndexOf("Conversation state not found",
+                                StringComparison.OrdinalIgnoreCase) >= 0)
+                        {
+                            missingConversation = ExtractLogValue(line, "conversationId");
+                            missingTime = lineTime;
+                            continue;
+                        }
+
+                        bool gpuCrashed =
+                            line.IndexOf("Recoverable Chromium child process gone",
+                                StringComparison.OrdinalIgnoreCase) >= 0 &&
+                            line.IndexOf("processType=GPU", StringComparison.OrdinalIgnoreCase) >= 0 &&
+                            line.IndexOf("reason=crashed", StringComparison.OrdinalIgnoreCase) >= 0;
+                        bool gpuLaunchFailed =
+                            line.IndexOf("Recoverable Chromium child process gone",
+                                StringComparison.OrdinalIgnoreCase) >= 0 &&
+                            line.IndexOf("processType=GPU", StringComparison.OrdinalIgnoreCase) >= 0 &&
+                            line.IndexOf("reason=launch-failed", StringComparison.OrdinalIgnoreCase) >= 0;
+                        if (gpuLaunchFailed && newest.Found &&
+                            newest.Kind == CrashKind.GpuRenderer &&
+                            lineTime >= newest.Time &&
+                            (lineTime - newest.Time).TotalSeconds <= 5.0)
+                            continue;
+                        if ((!gpuCrashed && !gpuLaunchFailed) ||
+                            (newest.Found && lineTime <= newest.Time))
+                            continue;
+
+                        string conversation = "";
+                        if (activeTime != DateTime.MinValue &&
+                            lineTime >= activeTime &&
+                            (lineTime - activeTime).TotalMinutes <= 10.0)
+                            conversation = activeConversation;
+                        if (!String.IsNullOrEmpty(missingConversation) &&
+                            missingTime != DateTime.MinValue &&
+                            lineTime >= missingTime &&
+                            (lineTime - missingTime).TotalMinutes <= 2.0)
+                            conversation = missingConversation;
+
+                        newest = new CrashInfo
+                        {
+                            Found = true,
+                            Time = lineTime,
+                            App = "Chromium GPU",
+                            ExceptionCode = ExtractLogValue(line, "exitCode"),
+                            ConversationId = conversation,
+                            Detail = !String.IsNullOrEmpty(missingConversation) &&
+                                (lineTime - missingTime).TotalMinutes <= 2.0
+                                ? "恢复会话状态后 GPU 进程崩溃"
+                                : "GPU 进程崩溃",
+                            Kind = CrashKind.GpuRenderer
+                        };
+                    }
+                }
+            }
+            catch { }
+            return newest;
+        }
+
         private static readonly string[] OutOfMemoryCodes =
         {
             "e0000008", // Chromium kOomExceptionCode：ChatGPT.exe 宿主内存耗尽
@@ -351,9 +459,7 @@ namespace CodexRecoveryCenter
         {
             try
             {
-                string root = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                    "Packages", PackageFamily, "LocalCache", "Local", "Codex", "Logs");
+                string root = GetDesktopLogRoot();
                 for (int back = 0; back <= 1; back++)
                 {
                     DateTime day = around.Date.AddDays(-back);
@@ -375,22 +481,59 @@ namespace CodexRecoveryCenter
             return false;
         }
 
-        private static bool TailContains(string file, string needle)
+        private static string GetDesktopLogRoot()
+        {
+            return Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "Packages", PackageFamily, "LocalCache", "Local", "Codex", "Logs");
+        }
+
+        private static bool TryParseDesktopLogTime(string line, out DateTime localTime)
+        {
+            localTime = DateTime.MinValue;
+            if (String.IsNullOrEmpty(line) || line.Length < 24)
+                return false;
+            DateTime parsed;
+            if (!DateTime.TryParse(line.Substring(0, 24), CultureInfo.InvariantCulture,
+                    DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out parsed))
+                return false;
+            localTime = parsed.ToLocalTime();
+            return true;
+        }
+
+        private static string ExtractLogValue(string line, string name)
+        {
+            string marker = name + "=";
+            int start = line.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+            if (start < 0)
+                return "";
+            start += marker.Length;
+            int end = line.IndexOf(' ', start);
+            if (end < 0)
+                end = line.Length;
+            return line.Substring(start, end - start).Trim();
+        }
+
+        private static string ReadTail(string file, int maxTail)
         {
             try
             {
                 using (var stream = new FileStream(
                     file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
                 {
-                    const int maxTail = 131072;
                     if (stream.Length > maxTail)
                         stream.Seek(-maxTail, SeekOrigin.End);
                     using (var reader = new StreamReader(stream, Encoding.UTF8))
-                        return reader.ReadToEnd()
-                            .IndexOf(needle, StringComparison.OrdinalIgnoreCase) >= 0;
+                        return reader.ReadToEnd();
                 }
             }
-            catch { return false; }
+            catch { return ""; }
+        }
+
+        private static bool TailContains(string file, string needle)
+        {
+            return ReadTail(file, 131072)
+                .IndexOf(needle, StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         private static readonly string[] ProtectedProcesses =
@@ -631,6 +774,8 @@ namespace CodexRecoveryCenter
                 "lastCrashApp=" + crash.App,
                 "lastCrashCode=" + crash.ExceptionCode,
                 "lastCrashKind=" + crash.Kind,
+                "lastCrashConversationId=" + crash.ConversationId,
+                "lastCrashDetail=" + crash.Detail,
                 "topCommitGroups=" + String.Join("; ", hogs.Select(group =>
                     group.Name + "x" + group.Count + "=" +
                     group.CommitMb.ToString("F0") + "MB"))

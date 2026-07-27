@@ -9,6 +9,9 @@ WinForms GUI
   ├─ RecoveryEngine
   │   ├─ 包状态探针：Get-AppxPackage OpenAI.Codex
   │   ├─ 进程管理：ChatGPT.exe / codex.exe
+  │   ├─ 崩溃分诊：Application Error + Codex 桌面日志
+  │   │   ├─ 内存耗尽：异常码 / memory allocation failed
+  │   │   └─ GPU / 会话渲染：GPU crashed / launch-failed + conversationId
   │   ├─ 安全启动：ChatGPT.exe --disable-gpu
   │   ├─ 注册修复：RegisterByFamilyName + 12/30 秒轮询
   │   └─ 商店兜底：winget → msstore → 9PLM9XGG6VKS + 240 秒轮询

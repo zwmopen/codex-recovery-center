@@ -1,5 +1,12 @@
 # 更新记录
 
+## 1.5.0 - 2026-07-27
+
+- 新增 GPU / 会话渲染崩溃分诊：读取 Codex 桌面日志中的 Chromium GPU `crashed` 与 `launch-failed` 事件，并与 Windows Application Error 中较新的事件比较。
+- 从崩溃前的 `thread_stream_view_activity_changed` / `Conversation state not found` 诊断元数据提取触发会话 ID；不读取、保存或上传会话正文。
+- 安装包仍为 `Ok` 时，不再把这类故障误当成旧的内存崩溃或要求重新下载安装；界面改为提示先归档触发会话并使用 GPU 安全模式。
+- 用 2026-07-27 16:16 的真实故障回归：会话 `019f73cf…` 恢复后，Chromium GPU 以 `101457950` 崩溃，20 毫秒后重启失败；1.5.0 自检已准确识别。
+
 ## 1.4.1 - 2026-07-27
 
 - 补齐 EXE 的 Windows 文件版本、产品版本、产品名称和说明，资源管理器与诊断工具不再显示 `0.0.0.0`。
