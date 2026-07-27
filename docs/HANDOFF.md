@@ -15,7 +15,7 @@
 - 1.4.1 补齐 Windows EXE 文件版本元数据；构建脚本自动生成通用桌面成品、版本化发布包与 SHA-256 清单，降低手工发布错配风险。
 - 1.5.0 增加 GPU / 会话渲染崩溃分诊。2026-07-27 16:16 的真实事件已回归：目标会话恢复后出现 `Conversation state not found`，随后 Chromium GPU `101457950 / crashed`，再出现 `18 / launch-failed`。自检准确关联会话 UUID。
 - 目标超大会话 `019f73cf-dc79-7be2-90c5-86fdbf88f459` 已改名为“⚠ 超大会话已归档｜手机分享中控｜请勿直接打开”并归档；内容可后台读取，不能从界面直接重开。
-- 1.4.0 与 1.4.1 已补齐 GitHub Release；1.5.0 发布完成后更新本节的 Latest 地址与在线验收结果。
+- 1.4.0、1.4.1 与 1.5.0 已补齐 GitHub Release；1.5.0 为 Latest，附件包含版本化 EXE 与 `manifest.json`。程序端 `--update-self-test` 已真实读取在线 1.5.0、下载 EXE 并通过 SHA-256。
 
 ## 崩溃分诊判定顺序（不要改回只认单一异常码）
 
@@ -53,7 +53,7 @@
 - 桌面：`C:\Users\z\Desktop\Codex 恢复中心.lnk`
 - 本地数据：`C:\Users\z\AppData\Local\CodexRecoveryCenter`
 - 远程仓库：`https://github.com/zwmopen/codex-recovery-center`
-- 最新发布：发布 1.5.0 后更新
+- 最新发布：`https://github.com/zwmopen/codex-recovery-center/releases/tag/v1.5.0`
 
 ## 恢复算法
 
@@ -86,6 +86,7 @@ GitHub API 匿名访问曾在真实测试中返回 403；Raw 分支地址在推�
 
 - x64 WinForms 构建、正常状态自检、双主题切换、设置保存、设置页、关于页和日志页已验证。
 - 1.5.0 Windows 文件版本、产品版本、真实 GPU 崩溃识别和触发会话关联均已验证。
+- 1.5.0 GitHub Release、在线清单、同版本 EXE 下载与 SHA-256 校验均已验证。
 - 1.4.0、1.4.1 GitHub Release 均已发布；1.4.1 在线清单、同版本 EXE 下载和 SHA-256 已真实验证一致。
 - 打包 EXE 可打开，单实例回归通过；桌面快捷方式指向最新通用成品。
 - 真正的自替换安装需在后续有新版时做一次端到端回归；当前下载、校验和调度路径已具备。
