@@ -1,5 +1,10 @@
 # 验收
 
+## 1.4.1 已通过
+
+- Windows 文件属性中的文件版本、产品版本均为 `1.4.1.0`，产品名称为“Codex 恢复中心”。
+- 构建脚本一次生成 `Codex-Recovery-Center.exe`、`Codex-Recovery-Center-v1.4.1.exe` 和与成品 SHA-256 一致的 `manifest.json`。
+
 ## 1.4.0 已通过
 
 - C# x64 WinForms 构建成功；主界面实际截图确认 v1.4.0、四个次操作按钮（含“释放内存”）布局无裁切。
