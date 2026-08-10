@@ -1,9 +1,14 @@
 # 开发交接
 
-最后核对：2026-07-27  
-当前版本：1.5.0
+最后核对：2026-08-10
+当前版本：1.6.0
 
 ## 当前状态
+
+- 1.6.0 已新增资源守卫并在本机启用 `CodexRecoveryCenter-ResourceGuard` 计划任务，每 2 分钟执行一次 `--resource-guard-once`。首轮真实执行返回码 0，未误停进程。
+- 2026-08-10 事故证据：16 GB 物理内存机器多次触发 Resource Exhaustion；8 月 8 日 PowerShell 约 7.9 GB，8 月 10 日 Node 约 30 GB，随后 codex.exe 与 dwm.exe 崩溃。现场还发现旧 Vite 8661 句柄和两个各 781 线程的孤儿 conhost。
+- 即时恢复已只清理确认孤儿的旧 Vite 与两个异常 conhost；保守降载后可用内存约从 1.4–1.6 GB回升到约 3.0 GB，后续复测换页读取从约 2980/s降到 0/s。
+- 资源守卫硬边界：Node/PowerShell/pwsh 私有提交达到 6 GB即停止；Vite 等普通高句柄进程必须同时满足父进程不存在、存活至少 4 小时、句柄不少于 3000 才回收；整机高压只降优先级和回收工作集，不自动关闭 Codex/ChatGPT。
 
 - 独立 WinForms EXE 已构建，桌面入口为 `Codex 恢复中心.lnk`。
 - 2026-07-26 18:47 的真实 `0x3CFC` 故障已完成“注册修复 → 微软商店重新暂存 → 状态恢复 → GPU 安全模式启动”闭环。
@@ -45,6 +50,7 @@
 ## 权威路径
 
 - 恢复引擎：`src\CodexRecoveryCenter.cs`
+- 资源守卫：`src\ResourceGuard.cs`
 - 主界面：`src\MainForm.cs`
 - 主题、设置与更新：`src\ProductExperience.cs`
 - 构建：`scripts\Build.ps1`
@@ -52,6 +58,7 @@
 - 更新清单：`releases\manifest.json`
 - 桌面：`C:\Users\z\Desktop\Codex 恢复中心.lnk`
 - 本地数据：`C:\Users\z\AppData\Local\CodexRecoveryCenter`
+- 资源守卫任务：Windows 计划任务 `CodexRecoveryCenter-ResourceGuard`
 - 远程仓库：`https://github.com/zwmopen/codex-recovery-center`
 - 最新发布：`https://github.com/zwmopen/codex-recovery-center/releases/tag/v1.5.0`
 

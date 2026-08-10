@@ -333,7 +333,8 @@ namespace CodexRecoveryCenter
             ThemeManager.Apply(this, appSettings.Theme);
             statusDot.ForeColor = DotColor(lastLevel);
             WriteLog("设置已保存；主题：" +
-                (appSettings.Theme == VisualTheme.Neumorphic ? "拟态悬浮" : "克制玻璃") + "。");
+                (appSettings.Theme == VisualTheme.Neumorphic ? "拟态悬浮" : "克制玻璃") +
+                "；资源守卫：" + (appSettings.ResourceGuardEnabled ? "已开启" : "未开启") + "。");
         }
 
         private void WriteLog(string text)

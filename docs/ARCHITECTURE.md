@@ -16,6 +16,11 @@ WinForms GUI
   │   ├─ 注册修复：RegisterByFamilyName + 12/30 秒轮询
   │   └─ 商店兜底：winget → msstore → 9PLM9XGG6VKS + 240 秒轮询
   ├─ GlobalMemoryStatusEx：物理/虚拟内存余量与提交压力
+  ├─ ResourceGuard（计划任务每 2 分钟调用 `--resource-guard-once`）
+  │   ├─ 6 GB 单进程硬保护：Node / PowerShell / pwsh
+  │   ├─ 4 小时宽限后的高句柄孤儿开发服务回收
+  │   ├─ 高线程孤儿 conhost 回收
+  │   └─ 整机高压时降低优先级并回收工作集
   ├─ ThemeManager / SettingsStore：视觉与偏好持久化
   └─ UpdateService：Latest Release 清单 → EXE 下载 → SHA-256 → 用户确认替换
 ```
@@ -23,6 +28,7 @@ WinForms GUI
 ## 关键文件
 
 - 程序入口与恢复引擎：`src\CodexRecoveryCenter.cs`
+- 资源守卫与计划任务：`src\ResourceGuard.cs`
 - 主界面与日志窗口：`src\MainForm.cs`
 - 设置、主题、关于与更新：`src\ProductExperience.cs`
 - 构建入口：`scripts\Build.ps1`
@@ -35,6 +41,7 @@ WinForms GUI
 %LOCALAPPDATA%\CodexRecoveryCenter\
   ├─ settings.ini
   ├─ logs\
+  ├─ resource-guard\latest.txt + guard-YYYYMMDD.log
   └─ updates\
 ```
 

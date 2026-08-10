@@ -15,7 +15,7 @@ namespace CodexRecoveryCenter
 {
     internal static class ProductInfo
     {
-        public const string Version = "1.5.0";
+        public const string Version = "1.6.0";
         public const string RepositoryUrl = "https://github.com/zwmopen/codex-recovery-center";
         public const string ReleasesUrl = RepositoryUrl + "/releases";
         public const string UpdateManifestUrl =
@@ -41,6 +41,7 @@ namespace CodexRecoveryCenter
         public VisualTheme Theme = VisualTheme.Neumorphic;
         public bool AutoCheckUpdates = true;
         public bool AutoDownloadUpdates = true;
+        public bool ResourceGuardEnabled;
 
         public AppSettings Clone()
         {
@@ -48,7 +49,8 @@ namespace CodexRecoveryCenter
             {
                 Theme = Theme,
                 AutoCheckUpdates = AutoCheckUpdates,
-                AutoDownloadUpdates = AutoDownloadUpdates
+                AutoDownloadUpdates = AutoDownloadUpdates,
+                ResourceGuardEnabled = ResourceGuardEnabled
             };
         }
     }
@@ -88,11 +90,18 @@ namespace CodexRecoveryCenter
                         if (Enum.TryParse(value, true, out parsed))
                             settings.Theme = parsed;
                     }
+                    else if (key.Equals("ResourceGuardEnabled", StringComparison.OrdinalIgnoreCase))
+                    {
+                        bool parsed;
+                        if (bool.TryParse(value, out parsed))
+                            settings.ResourceGuardEnabled = parsed;
+                    }
                 }
             }
             catch { }
             settings.AutoCheckUpdates = true;
             settings.AutoDownloadUpdates = true;
+            settings.ResourceGuardEnabled = ResourceGuard.IsScheduled();
             return settings;
         }
 
@@ -100,7 +109,8 @@ namespace CodexRecoveryCenter
         {
             string[] lines =
             {
-                "Theme=" + settings.Theme
+                "Theme=" + settings.Theme,
+                "ResourceGuardEnabled=" + settings.ResourceGuardEnabled
             };
             File.WriteAllLines(SettingsPath, lines, Encoding.UTF8);
         }
@@ -480,6 +490,7 @@ namespace CodexRecoveryCenter
         private readonly Label hint;
         private readonly SoftButton saveButton;
         private readonly SoftButton checkButton;
+        private readonly SoftButton guardButton;
         private readonly AppSettings working;
         private readonly Action<AppSettings> applySettings;
         private readonly Func<Task> checkUpdates;
@@ -491,8 +502,8 @@ namespace CodexRecoveryCenter
             checkUpdates = check;
 
             Text = "设置 · Codex 恢复中心";
-            ClientSize = new Size(600, 420);
-            MinimumSize = new Size(560, 400);
+            ClientSize = new Size(600, 555);
+            MinimumSize = new Size(560, 535);
             StartPosition = FormStartPosition.CenterParent;
             Font = new Font("Microsoft YaHei UI", 10F);
             AutoScaleMode = AutoScaleMode.Dpi;
@@ -514,18 +525,28 @@ namespace CodexRecoveryCenter
             themeCard.Controls.Add(neoThemeButton);
             themeCard.Controls.Add(glassThemeButton);
 
-            var updateCard = CardAt(30, 222, 540, 92);
+            var guardCard = CardAt(30, 222, 540, 104);
+            guardCard.Controls.Add(LabelAt("资源守卫", 20, 14, 11F, FontStyle.Bold, null));
+            guardCard.Controls.Add(LabelAt("每 2 分钟拦截失控进程与高风险孤儿服务，不关闭正常任务。",
+                20, 45, 9F, FontStyle.Regular, "muted"));
+            guardButton = ButtonAt(working.ResourceGuardEnabled ? "已开启" : "未开启",
+                398, 51, 122, 36, working.ResourceGuardEnabled
+                    ? ButtonVisualRole.Primary : ButtonVisualRole.Secondary);
+            guardButton.Click += (s, e) => ToggleResourceGuard();
+            guardCard.Controls.Add(guardButton);
+
+            var updateCard = CardAt(30, 340, 540, 92);
             updateCard.Controls.Add(LabelAt("软件更新", 20, 15, 11F, FontStyle.Bold, null));
             checkButton = ButtonAt("检查版本", 374, 43, 146, 36, ButtonVisualRole.Secondary);
             updateCard.Controls.Add(checkButton);
 
-            hint = LabelAt("设置保存在本机，不会同步到云端。", 32, 329, 9F,
+            hint = LabelAt("设置保存在本机，不会同步到云端。", 32, 450, 9F,
                 FontStyle.Regular, "muted");
-            saveButton = ButtonAt("保存设置", 420, 355, 150, 42, ButtonVisualRole.Primary);
-            var cancelButton = ButtonAt("取消", 314, 355, 92, 42, ButtonVisualRole.Ghost);
+            saveButton = ButtonAt("保存设置", 420, 478, 150, 42, ButtonVisualRole.Primary);
+            var cancelButton = ButtonAt("取消", 314, 478, 92, 42, ButtonVisualRole.Ghost);
 
             Controls.AddRange(new Control[]
-                { title, themeCard, updateCard, hint, saveButton, cancelButton });
+                { title, themeCard, guardCard, updateCard, hint, saveButton, cancelButton });
 
             checkButton.Click += async (s, e) =>
             {
@@ -542,6 +563,16 @@ namespace CodexRecoveryCenter
             {
                 working.AutoCheckUpdates = true;
                 working.AutoDownloadUpdates = true;
+                CommandResult guardResult = ResourceGuard.SetScheduledGuardEnabled(
+                    working.ResourceGuardEnabled);
+                if (guardResult.ExitCode != 0 &&
+                    !(guardResult.ExitCode == 1 && !working.ResourceGuardEnabled))
+                {
+                    MessageBox.Show(this,
+                        "资源守卫设置失败：" + guardResult.Output,
+                        "无法保存", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
                 SettingsStore.Save(working);
                 applySettings(working.Clone());
                 DialogResult = DialogResult.OK;
@@ -549,6 +580,15 @@ namespace CodexRecoveryCenter
             };
             cancelButton.Click += (s, e) => Close();
 
+            ThemeManager.Apply(this, working.Theme);
+        }
+
+        private void ToggleResourceGuard()
+        {
+            working.ResourceGuardEnabled = !working.ResourceGuardEnabled;
+            guardButton.Text = working.ResourceGuardEnabled ? "已开启" : "未开启";
+            guardButton.VisualRole = working.ResourceGuardEnabled
+                ? ButtonVisualRole.Primary : ButtonVisualRole.Secondary;
             ThemeManager.Apply(this, working.Theme);
         }
 

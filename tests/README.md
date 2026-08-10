@@ -1,5 +1,14 @@
 # 验收
 
+## 1.6.0 已通过
+
+- C# x64 WinForms 构建成功；Windows 文件版本与产品版本均为 `1.6.0`。
+- `--resource-guard-self-test` 在 368 个进程的现场快照上返回 `success=True`，宽限规则修正后未命中当前活跃 Vite。
+- 初版规则曾把刚启动但父命令已退出的 Vite 识别为回收候选；增加 4 小时宽限后复测为 `actions=none`，避免误停活跃预览。
+- 计划任务已真实创建并手动触发，`Last Result=0`；状态文件显示 `mode=enforce`、`stopped=0`、`actions=none`。
+- 即时稳定化后复测 `PageReadsPerSec=0`；守卫运行前曾约为 `2980/s`。
+- `tests\Test-ResourceGuard.ps1` 同时检查 6 GB硬阈值、4 小时宽限、孤儿句柄/线程阈值和只读自检。
+
 ## 1.5.0 已通过
 
 - Windows 文件版本、产品版本均为 `1.5.0`。

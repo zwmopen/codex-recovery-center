@@ -45,3 +45,27 @@
 - 恢复中心 1.5.0 会显示触发会话 ID。先把该会话归档，避免再次从侧栏误点；不要用复制全部历史的方式继续它。
 - 重新打开 Codex 时使用“安全模式启动”。业务进度从项目 `HANDOFF.md`、共享记忆或新轻量会话接续。
 - 只有包状态变成 `Modified, NeedsRemediation` 时，才需要“一键恢复并启动”进入注册或微软商店重新暂存。
+# PowerShell/终端反复假死，Node 或 PowerShell 曾占用数 GB
+
+## 现象
+
+- PowerShell 长时间“未响应”，Codex 工具调用迟迟不返回，桌面偶发卡顿。
+- CPU 不一定高，但磁盘忙、换页频繁，随后 Codex、DWM 或 Electron 应用崩溃。
+
+## 根因
+
+- 项目文件数量本身不会拖垮 PowerShell；真正的问题是 Vite/Node、隧道、watchdog 和 Electron 进程长期累积。
+- 2026-08-10 真实事件中，Windows 记录单个 Node 约 30 GB；此前还记录单个 PowerShell 约 7.9 GB。固定 32 GB页面文件一度峰值约 30 GB，系统已没有足够缓冲。
+- Vite 文件监听器可能天然持有数千句柄，因此不能仅按句柄数立即结束；必须结合父进程、存活时间和命令类型。
+
+## 修复
+
+1. 用恢复中心“释放内存”处理当前压力。
+2. 在设置页开启“资源守卫”。
+3. 只手工结束已确认失去父进程的残留，不把所有 Node/PowerShell 一次性清空。
+
+## 验证与防回归
+
+- 计划任务 `CodexRecoveryCenter-ResourceGuard` 每 2 分钟运行，最后结果应为 `0`。
+- `%LOCALAPPDATA%\CodexRecoveryCenter\resource-guard\latest.txt` 应显示 `success=True`。
+- 项目启动器仍应自行实现单实例、PID 文件、端口占用检查和退出回收；资源守卫只是机器级最后保护。

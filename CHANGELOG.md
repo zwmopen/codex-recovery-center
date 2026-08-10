@@ -1,5 +1,15 @@
 # 更新记录
 
+## 1.6.0 - 2026-08-10
+
+- 新增可选资源守卫计划任务，每 2 分钟运行一次独立轻量检查，不常驻新的 PowerShell。
+- 单个 `node.exe`、`powershell.exe` 或 `pwsh.exe` 私有提交达到 6 GB 时自动终止，防止再次出现 7.9–30 GB 泄漏拖垮整机。
+- 自动回收存活超过 4 小时、父进程已不存在、句柄不少于 3000 且命令明确属于 Vite/webpack/Next 等开发服务的残留；新启动或普通高句柄服务不会被误停。
+- 自动回收父进程已不存在且线程不少于 256 的异常 `conhost.exe`。
+- 整机物理内存低于 1.5 GB、可用提交低于 6 GB或提交压力达到 85% 时，降低后台 AI/浏览器优先级并回收可释放工作集；不关闭 Codex/ChatGPT。
+- 设置页增加真实生效的“资源守卫”开关；状态与脱敏日志只保存在 `%LOCALAPPDATA%\CodexRecoveryCenter\resource-guard`，日志保留 14 天。
+- 根据 2026-08-10 真实事故回归：Windows 曾记录 PowerShell 约 7.9 GB、Node 约 30 GB，并继发 Codex/DWM 崩溃；即时修复清理了旧 Vite 与两个异常孤儿控制台。
+
 ## 1.5.0 - 2026-07-27
 
 - 新增 GPU / 会话渲染崩溃分诊：读取 Codex 桌面日志中的 Chromium GPU `crashed` 与 `launch-failed` 事件，并与 Windows Application Error 中较新的事件比较。

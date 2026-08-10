@@ -22,6 +22,7 @@ New-Item -ItemType Directory -Path $build -Force | Out-Null
 & $compiler /nologo /target:winexe /optimize+ /platform:x64 `
     /reference:System.dll /reference:System.Core.dll /reference:System.Drawing.dll `
     /reference:System.Windows.Forms.dll /reference:System.Web.Extensions.dll `
+    /reference:System.Management.dll `
     /win32icon:$icon /win32manifest:$manifest `
     /out:$release $sources
 if ($LASTEXITCODE -ne 0) {
@@ -51,6 +52,7 @@ $manifest = [ordered]@{
         'Cannot patch third-party GPU or Codex application defects'
         'Microsoft Store restaging depends on Windows App Installer and network availability'
         'Memory relief force-closes the selected programs; unsaved work in them is lost'
+        'Resource Guard is a machine-level safety net and does not replace clean process shutdown in each project'
     )
 }
 $manifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $manifestPath -Encoding UTF8

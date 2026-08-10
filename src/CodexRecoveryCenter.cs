@@ -28,6 +28,29 @@ namespace CodexRecoveryCenter
         [STAThread]
         private static void Main(string[] args)
         {
+            if (args.Length == 1 && args[0] == "--resource-guard-once")
+            {
+                GuardResult result = ResourceGuard.RunOnce(true);
+                Environment.ExitCode = result.Success ? 0 : 2;
+                return;
+            }
+            if (args.Length == 2 && args[0] == "--resource-guard-self-test")
+            {
+                GuardResult result = ResourceGuard.RunOnce(false);
+                File.WriteAllText(args[1], result.ToString(), Encoding.UTF8);
+                Environment.ExitCode = result.Success ? 0 : 2;
+                return;
+            }
+            if (args.Length == 1 && args[0] == "--resource-guard-enable")
+            {
+                Environment.ExitCode = ResourceGuard.SetScheduledGuardEnabled(true).ExitCode;
+                return;
+            }
+            if (args.Length == 1 && args[0] == "--resource-guard-disable")
+            {
+                Environment.ExitCode = ResourceGuard.SetScheduledGuardEnabled(false).ExitCode;
+                return;
+            }
             if (args.Length == 2 && args[0] == "--self-test")
             {
                 File.WriteAllText(args[1], RecoveryEngine.BuildSelfTest(), Encoding.UTF8);
