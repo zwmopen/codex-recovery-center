@@ -1,19 +1,20 @@
 ﻿{
     "project":  "codex-recovery-center",
-    "version":  "1.5.0",
-    "source_commit":  "511cfe6871e7d044dae24afa7b8ea74bf201a7ba",
-    "build_date":  "2026-07-27",
+    "version":  "1.6.0",
+    "source_commit":  "a08ffe96eabc76a2f27abe523ed2e5151999bc4f",
+    "build_date":  "2026-08-10",
     "platform":  "Windows x64 / .NET Framework WinForms",
     "artifacts":  [
                       {
-                          "file":  "Codex-Recovery-Center-v1.5.0.exe",
-                          "sha256":  "88B6E2B17646175C5141E909641A5ECA711C61D8CDDBA4FC9F258782C5B03428",
-                          "bytes":  115712
+                          "file":  "Codex-Recovery-Center-v1.6.0.exe",
+                          "sha256":  "82D8C91B8B67E3807A1D5CD43CC09F5CD5CB95330FA6D3FCCF4D90647D29BF2B",
+                          "bytes":  124416
                       }
                   ],
     "known_limitations":  [
                               "Cannot patch third-party GPU or Codex application defects",
                               "Microsoft Store restaging depends on Windows App Installer and network availability",
-                              "Memory relief force-closes the selected programs; unsaved work in them is lost"
+                              "Memory relief force-closes the selected programs; unsaved work in them is lost",
+                              "Resource Guard is a machine-level safety net and does not replace clean process shutdown in each project"
                           ]
 }
