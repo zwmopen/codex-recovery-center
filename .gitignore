@@ -2,6 +2,9 @@
 /.work/*
 !/.work/README.md
 
+# 头脑风暴视觉伴侣临时产物
+/.superpowers/
+
 # 可重建构建产物
 /build/
 /dist/
