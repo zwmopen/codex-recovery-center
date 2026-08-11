@@ -5,12 +5,12 @@ $projectRoot = Split-Path -Parent $PSScriptRoot
 $sources = Get-ChildItem -LiteralPath (Join-Path $projectRoot 'src') -Filter '*.cs' |
     Sort-Object Name | ForEach-Object { $_.FullName }
 $build = Join-Path $projectRoot 'build'
-$release = Join-Path $projectRoot 'releases\Codex-Recovery-Center.exe'
+$release = Join-Path $projectRoot 'releases\Windows-Repair-Center.exe'
 $version = (Get-Content -LiteralPath (Join-Path $projectRoot 'VERSION') -Raw).Trim()
-$versionedRelease = Join-Path $projectRoot ("releases\Codex-Recovery-Center-v{0}.exe" -f $version)
+$versionedRelease = Join-Path $projectRoot ("releases\Windows-Repair-Center-v{0}.exe" -f $version)
 $manifestPath = Join-Path $projectRoot 'releases\manifest.json'
 $compiler = 'C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe'
-$icon = Join-Path $build 'Codex-Recovery-Center.ico'
+$icon = Join-Path $build 'Windows-Repair-Center.ico'
 $manifest = Join-Path $projectRoot 'assets\app.manifest'
 
 if (-not (Test-Path -LiteralPath $compiler)) {
@@ -36,7 +36,7 @@ if ($LASTEXITCODE -ne 0) {
     $sourceCommit = 'uncommitted'
 }
 $manifest = [ordered]@{
-    project = 'codex-recovery-center'
+    project = 'windows-repair-center'
     version = $version
     source_commit = "$sourceCommit".Trim()
     build_date = (Get-Date -Format 'yyyy-MM-dd')
@@ -60,18 +60,33 @@ $manifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $manifestPath -En
 if ($InstallDesktopShortcut) {
     $desktop = [Environment]::GetFolderPath('Desktop')
     $shortcutName = [Text.Encoding]::UTF8.GetString(
-        [Convert]::FromBase64String('Q29kZXgg5oGi5aSN5Lit5b+DLmxuaw==')
+        [Convert]::FromBase64String('V2luZG93cyDkv67lpI3kuK3lv4MubG5r')
     )
     $shortcutPath = Join-Path $desktop $shortcutName
     $shell = New-Object -ComObject WScript.Shell
     $shortcut = $shell.CreateShortcut($shortcutPath)
-    $shortcut.TargetPath = $release
-    $shortcut.WorkingDirectory = Split-Path -Parent $release
+    $launcher = Join-Path $PSScriptRoot 'run-windows-repair-center.vbs'
+    $shortcut.TargetPath = Join-Path $env:WINDIR 'System32\wscript.exe'
+    $shortcut.Arguments = '"' + $launcher + '"'
+    $shortcut.WorkingDirectory = $projectRoot
     $shortcut.IconLocation = "$release,0"
-    $shortcut.Description = [Text.Encoding]::UTF8.GetString(
-        [Convert]::FromBase64String('6K+K5pat44CB5L+u5aSN5bm25a6J5YWo5ZCv5YqoIENvZGV4')
-    )
+    $shortcut.Description = 'Windows local diagnosis, safe repair and verification'
     $shortcut.Save()
+
+    $legacyBackup = Join-Path $env:LOCALAPPDATA ("WindowsRepairCenter\backups\desktop-shortcuts\" + (Get-Date -Format 'yyyyMMdd-HHmmss'))
+    New-Item -ItemType Directory -Path $legacyBackup -Force | Out-Null
+    $legacyNames = @(
+        [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('Q29kZXgg5oGi5aSN5Lit5b+DLmxuaw==')),
+        [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('5LiA6ZSu5L+u5aSN6JOd54mZ6Z+z6aKRLmxuaw==')),
+        [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('6byg5qCH6K+t6Z+z6L6T5YWlLeWQr+WKqOS/ruWkjS5sbms='))
+    )
+    foreach ($legacyName in $legacyNames) {
+        $legacyPath = Join-Path $desktop $legacyName
+        if (Test-Path -LiteralPath $legacyPath) {
+            Copy-Item -LiteralPath $legacyPath -Destination (Join-Path $legacyBackup $legacyName) -Force
+            Remove-Item -LiteralPath $legacyPath -Force
+        }
+    }
 }
 
 [pscustomobject]@{

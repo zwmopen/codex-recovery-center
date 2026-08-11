@@ -1,12 +1,12 @@
 using System.Reflection;
 using System.Runtime.InteropServices;
 
-[assembly: AssemblyTitle("Codex 恢复中心")]
-[assembly: AssemblyDescription("Codex Windows 安装诊断、内存分诊与安全恢复工具")]
+[assembly: AssemblyTitle("Windows 修复中心")]
+[assembly: AssemblyDescription("Windows 本机诊断、安全修复、验证与回滚工作台")]
 [assembly: AssemblyCompany("zwmopen")]
-[assembly: AssemblyProduct("Codex 恢复中心")]
+[assembly: AssemblyProduct("Windows 修复中心")]
 [assembly: AssemblyCopyright("Copyright © 2026 zwmopen")]
 [assembly: ComVisible(false)]
-[assembly: AssemblyVersion("1.6.0.0")]
-[assembly: AssemblyFileVersion("1.6.0.0")]
-[assembly: AssemblyInformationalVersion("1.6.0")]
+[assembly: AssemblyVersion("2.0.0.0")]
+[assembly: AssemblyFileVersion("2.0.0.0")]
+[assembly: AssemblyInformationalVersion("2.0.0")]

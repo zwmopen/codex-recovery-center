@@ -69,6 +69,38 @@ namespace CodexRecoveryCenter
                 }
                 return;
             }
+            if (args.Length == 2 && args[0] == "--repair-center-self-test")
+            {
+                try
+                {
+                    var modules = new IRepairModule[]
+                    {
+                        new CodexRepairModule(),
+                        new BluetoothRepairModule(),
+                        new MouseVoiceRepairModule(),
+                        new PopupAuditRepairModule(),
+                        new NetworkRepairModule(),
+                        new PerformanceRepairModule(),
+                        new StartupRepairModule()
+                    };
+                    var report = new StringBuilder();
+                    report.AppendLine("Windows Repair Center self-test");
+                    report.AppendLine("time=" + DateTime.Now.ToString("O"));
+                    report.AppendLine("version=" + ProductInfo.Version);
+                    foreach (IRepairModule module in modules)
+                    {
+                        RepairFinding finding = module.Detect();
+                        report.AppendLine(module.Id + "=" + finding.StatusText + ";" + finding.Summary);
+                    }
+                    File.WriteAllText(args[1], report.ToString(), Encoding.UTF8);
+                }
+                catch (Exception ex)
+                {
+                    File.WriteAllText(args[1], "repairCenterSelfTestError=" + ex, Encoding.UTF8);
+                    Environment.ExitCode = 2;
+                }
+                return;
+            }
 
             bool createdNew;
             using (var singleInstance = new Mutex(true, SingleInstanceName, out createdNew))
@@ -83,7 +115,7 @@ namespace CodexRecoveryCenter
                 {
                     Application.EnableVisualStyles();
                     Application.SetCompatibleTextRenderingDefault(false);
-                    Application.Run(new MainForm());
+                    Application.Run(new WindowsRepairCenterForm());
                 }
                 finally
                 {

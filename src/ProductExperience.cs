@@ -15,7 +15,7 @@ namespace CodexRecoveryCenter
 {
     internal static class ProductInfo
     {
-        public const string Version = "1.6.0";
+        public const string Version = "2.0.0";
         public const string RepositoryUrl = "https://github.com/zwmopen/codex-recovery-center";
         public const string ReleasesUrl = RepositoryUrl + "/releases";
         public const string UpdateManifestUrl =
@@ -63,7 +63,7 @@ namespace CodexRecoveryCenter
             {
                 string root = Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                    "CodexRecoveryCenter");
+                    "WindowsRepairCenter");
                 Directory.CreateDirectory(root);
                 return Path.Combine(root, "settings.ini");
             }
@@ -72,12 +72,21 @@ namespace CodexRecoveryCenter
         public static AppSettings Load()
         {
             var settings = new AppSettings();
-            if (!File.Exists(SettingsPath))
+            string sourcePath = SettingsPath;
+            if (!File.Exists(sourcePath))
+            {
+                string legacyPath = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "CodexRecoveryCenter", "settings.ini");
+                if (File.Exists(legacyPath))
+                    sourcePath = legacyPath;
+            }
+            if (!File.Exists(sourcePath))
                 return settings;
 
             try
             {
-                foreach (string raw in File.ReadAllLines(SettingsPath, Encoding.UTF8))
+                foreach (string raw in File.ReadAllLines(sourcePath, Encoding.UTF8))
                 {
                     string line = raw.Trim();
                     int separator = line.IndexOf('=');
