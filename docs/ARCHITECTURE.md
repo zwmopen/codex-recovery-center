@@ -9,7 +9,7 @@ WindowsRepairCenterForm / WindowsToolShell
   ├─ CodexRepairModule：AppX、GPU、崩溃与 ResourceGuard
   ├─ BluetoothRepairModule：蓝牙端点与 AudioEndpointBuilder/Audiosrv
   ├─ MouseVoiceRepairModule：watchdog、PID、心跳与隐藏任务
-  ├─ PopupAuditRepairModule：Task Scheduler、Startup、Run/RunOnce、profile、Event Log
+  ├─ PopupAuditRepairModule：Task Scheduler（动作/注册/最近运行时间）、Startup、Run/RunOnce、profile、服务、PowerShell Operational、Security 4688/Sysmon、实时 shell 父进程与来源归因
   ├─ NetworkRepairModule：网卡、DNS、代理、Cloudflare/tunnel 只读诊断与 DNS 刷新
   ├─ StorageAnalysisModule：磁盘容量、缓存候选与用户资料只读分级
   ├─ PerformanceRepairModule：内存、临时文件、开发进程白名单与资源守卫

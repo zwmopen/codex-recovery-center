@@ -1,17 +1,18 @@
 # 开发交接
 
 最后核对：2026-08-12
-当前版本：2.2.0
+当前版本：2.3.0
 
-## 2.2.0 当前交付状态
+## 2.3.0 当前交付状态
 
 - 产品已升级为“Windows 修复中心”，入口为 `src\WindowsRepairCenter.cs` 的统一模块化 WinForms 外壳。
 - P0 模块已接入：电脑概览、Codex、蓝牙音频、鼠标语音输入、PowerShell/CMD 弹窗审计、网络诊断、存储分析、电脑加速与空间、启动项与桌面入口。
 - 2026-08-12 增加“电脑概览”首屏和只读“存储分析”模块；存储候选按可重建缓存/用户资料分级，默认不提供删除动作。
 - 2026-08-12 完成发布前体检：正常状态不再显示修复按钮；弹窗审计补齐 PowerShell Operational、RunOnce 和系统 profile 证据；设置、关于、记录和更新检查入口可用；存储扫描跳过 reparse point。
 - 弹窗审计还会只读读取 Security 4688 / Sysmon Event 1；本机当前没有现成进程创建事件，未擅自开启需要管理员权限的系统审计策略。
+- 审计优化已完成：计划任务输出动作/注册时间/最近运行/结果，加入服务和实时 shell 父进程，按唯一证据组计数并对已登记来源归因；未知脚本仍需人工确认，命令行和事件字段做敏感参数脱敏。
 - 诊断默认只读；修复动作由模块声明，UI 在执行前显示影响并在执行后重新检测。
-- 真实构建通过：`releases\Windows-Repair-Center.exe`，版本 `2.2.0`。
+- 真实构建通过：`releases\Windows-Repair-Center.exe`，版本 `2.3.0`。
 - `--repair-center-self-test` 已在当前电脑通过，读取八个模块状态并返回退出码 0；每次发布前同时复核窗口响应、事件日志和桌面快捷方式。
 - 桌面已创建 `C:\Users\z\Desktop\Windows 修复中心.lnk`；旧的三个入口已备份到 `%LOCALAPPDATA%\WindowsRepairCenter\backups\desktop-shortcuts\20260811-131305` 后移出桌面。
 - 构建脚本 `scripts\Build.ps1 -InstallDesktopShortcut` 会在源码构建成功后更新入口；构建失败不会覆盖最后一个可用 EXE。

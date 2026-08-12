@@ -88,11 +88,19 @@ namespace CodexRecoveryCenter
                     report.AppendLine("Windows Repair Center self-test");
                     report.AppendLine("time=" + DateTime.Now.ToString("O"));
                     report.AppendLine("version=" + ProductInfo.Version);
+                    Stopwatch total = Stopwatch.StartNew();
                     foreach (IRepairModule module in modules)
                     {
+                        Stopwatch timer = Stopwatch.StartNew();
                         RepairFinding finding = module.Detect();
-                        report.AppendLine(module.Id + "=" + finding.StatusText + ";" + finding.Summary);
+                        report.AppendLine(module.Id + "=" + finding.StatusText + ";" + finding.Summary + ";ms=" + timer.ElapsedMilliseconds + ";evidence=" + finding.Evidence.Count);
+                        if (module.Id == "popup-audit")
+                        {
+                            foreach (string evidence in finding.Evidence.Take(12))
+                                report.AppendLine("popup-evidence=" + evidence);
+                        }
                     }
+                    report.AppendLine("totalMs=" + total.ElapsedMilliseconds);
                     File.WriteAllText(args[1], report.ToString(), Encoding.UTF8);
                 }
                 catch (Exception ex)

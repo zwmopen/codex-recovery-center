@@ -8,6 +8,7 @@ using System.Management;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -383,49 +384,82 @@ namespace CodexRecoveryCenter
             try
             {
                 RepairFinding finding = Finding(RepairFindingStatus.Normal,
-                    "已完成启动源只读审计。", false, "", "发现可疑来源后才会生成修复动作；未知 PowerShell 不会被静默隐藏。", "只读，不修改系统");
+                    "已完成启动源只读审计。", false, "", "覆盖 Run/RunOnce、Startup、计划任务动作与注册时间、PowerShell Operational、进程创建、profile、服务和实时 shell 父进程；未知 PowerShell 不会被静默隐藏。", "只读，不修改系统");
                 int hits = 0;
+                int knownHits = 0;
+                int runHits = 0;
+                int startupHits = 0;
+                int taskHits = 0;
+                int profileHits = 0;
+                int serviceHits = 0;
+                int processHits = 0;
+                var evidenceGroups = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 foreach (string line in ReadRunKeys())
                 {
-                    Add(finding, line);
-                    if (IsInteresting(line)) hits++;
+                    bool candidate = IsSourceCandidate(line);
+                    Add(finding, "RunSource=" + DescribeSource(line) + "; " + line);
+                    if (candidate) { if (IsKnownSource(line)) knownHits++; else if (RegisterEvidence(evidenceGroups, "run", line)) { hits++; runHits++; } }
                 }
                 string startup = Environment.GetFolderPath(Environment.SpecialFolder.Startup);
                 if (Directory.Exists(startup))
                     foreach (string file in Directory.GetFiles(startup))
                     {
-                        Add(finding, "Startup=" + file);
-                        if (IsInteresting(file)) hits++;
+                        string line = "Startup=" + file;
+                        bool candidate = IsSourceCandidate(line);
+                        Add(finding, "StartupSource=" + DescribeSource(line) + "; " + line);
+                        if (candidate) { if (IsKnownSource(line)) knownHits++; else if (RegisterEvidence(evidenceGroups, "startup", line)) { hits++; startupHits++; } }
                     }
-                string taskText = QueryTasks();
-                foreach (string line in taskText.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
-                    .Where(value => IsInteresting(value)).Take(18))
+                foreach (string line in ReadScheduledTaskEvidence())
                 {
-                    Add(finding, "Task=" + OneLine(line));
-                    hits++;
+                    bool candidate = IsSourceCandidate(line);
+                    Add(finding, "TaskSource=" + DescribeSource(line) + "; " + OneLine(line, 520));
+                    if (candidate) { if (IsKnownSource(line)) knownHits++; else if (RegisterEvidence(evidenceGroups, "task", line)) { hits++; taskHits++; } }
                 }
                 foreach (string line in ReadPowerShellOperationalLog())
                 {
                     Add(finding, "PowerShellOperational=" + OneLine(line, 520));
-                    if (IsOperationalEvidence(line)) hits++;
+                    if (IsActionEvidence(line)) { if (IsKnownSource(line)) knownHits++; else if (RegisterEvidence(evidenceGroups, "powershell-operational", line)) hits++; }
                 }
                 foreach (string line in ReadProcessCreationLog())
                 {
                     Add(finding, "ProcessCreation=" + OneLine(line, 520));
-                    if (IsOperationalEvidence(line)) hits++;
+                    if (IsActionEvidence(line)) { if (IsKnownSource(line)) knownHits++; else if (RegisterEvidence(evidenceGroups, "process-creation", line)) { hits++; processHits++; } }
+                }
+                foreach (string line in ReadServiceEvidence())
+                {
+                    Add(finding, "ServiceSource=" + DescribeSource(line) + "; " + OneLine(line, 520));
+                    if (IsSourceCandidate(line)) { if (IsKnownSource(line)) knownHits++; else if (RegisterEvidence(evidenceGroups, "service", line)) { hits++; serviceHits++; } }
+                }
+                foreach (string line in ReadLiveShellEvidence())
+                {
+                    Add(finding, "LiveShell=" + DescribeSource(line) + "; " + OneLine(line, 520));
+                    if (IsLiveShellCandidate(line)) { if (IsKnownSource(line)) knownHits++; else if (RegisterEvidence(evidenceGroups, "live-shell", line)) { hits++; processHits++; } }
                 }
                 foreach (string profile in PowerShellProfiles())
                 {
-                    Add(finding, SafeFileInfo(profile));
-                    if (File.Exists(profile)) hits++;
+                    foreach (string line in ReadProfileEvidence(profile))
+                    {
+                        Add(finding, "ProfileSource=" + DescribeSource(line) + "; " + line);
+                        if (IsSourceCandidate(line)) { if (IsKnownSource(line)) knownHits++; else if (RegisterEvidence(evidenceGroups, "profile", line)) { hits++; profileHits++; } }
+                    }
                 }
                 int processCount = Process.GetProcessesByName("powershell").Length + Process.GetProcessesByName("pwsh").Length + Process.GetProcessesByName("cmd").Length;
                 Add(finding, "interactive-shell-processes=" + processCount);
+                Add(finding, "coverage=unclassified Run/RunOnce:" + runHits + "; Startup:" + startupHits + "; Task:" + taskHits + "; Profile:" + profileHits + "; Service:" + serviceHits + "; Process:" + processHits + "; known=" + knownHits + "; window=last 24h for event evidence");
                 if (hits > 0)
                 {
                     finding.Status = RepairFindingStatus.NeedsConfirmation;
-                    finding.Summary = "发现需要人工确认的启动源、脚本或事件证据。";
-                    finding.Detail = "请先查看证据链；只有确认无用的遗留项才允许停用，当前版本不自动删除。";
+                    finding.Summary = "发现 " + hits + " 条需要人工确认的启动源或进程证据。";
+                    finding.Detail = "先按来源、父进程、命令行和注册时间确认；只有确认无用的遗留项才允许停用，当前版本不自动删除。";
+                }
+                else if (knownHits > 0)
+                {
+                    finding.Summary = "发现 " + knownHits + " 条已归因的管理来源，未发现未归因启动证据。";
+                    finding.Detail = "已知来源仍保留在证据链中；若弹窗再次出现，应优先对照时间、父进程和命令行，而不是直接停用这些任务。";
+                }
+                else
+                {
+                    finding.Detail = "未发现未归因的启动型证据；当前日志只保留最近 24 小时，下一次弹窗出现后请立即重新检查并保存报告。";
                 }
                 return finding;
             }
@@ -451,23 +485,44 @@ namespace CodexRecoveryCenter
             }
         }
 
-        private static string QueryTasks()
+        private static IEnumerable<string> ReadScheduledTaskEvidence()
         {
-            CommandResult result = RecoveryEngine.RunProcess("schtasks.exe", "/query /fo CSV /nh /v", 30000);
-            return result.Output ?? "";
+            var lines = new List<string>();
+            string script =
+                "$pattern='powershell|pwsh|cmd\\.exe|wscript|cscript|\\.ps1|\\.vbs|\\.bat|\\.cmd|cloudflared|tunnel|updater|sync|dida|滴答|工作台|团建|D:\\\\AICode';" +
+                "Get-ScheduledTask -ErrorAction SilentlyContinue | ForEach-Object { $t=$_; $actions=(@($t.Actions) | ForEach-Object { ($_.Execute+' '+$_.Arguments).Trim() }) -join ' || '; $hay=($t.TaskPath+' '+$t.TaskName+' '+$actions+' '+$t.Principal.UserId); if($hay -match $pattern) { $last=''; $next=''; $result=''; try{$i=Get-ScheduledTaskInfo -TaskName $t.TaskName -TaskPath $t.TaskPath; $last=$i.LastRunTime.ToString('o'); $next=$i.NextRunTime.ToString('o'); $result=[string]$i.LastTaskResult}catch{}; $date=''; try{$x=[xml](Export-ScheduledTask -TaskName $t.TaskName -TaskPath $t.TaskPath); $date=[string]$x.Task.RegistrationInfo.Date}catch{}; 'task|'+$t.TaskPath+$t.TaskName+'|state='+$t.State+'|registered='+$date+'|last='+$last+'|next='+$next+'|result='+$result+'|action='+$actions } }";
+            CommandResult result = RecoveryEngine.RunPowerShell(script, 30000);
+            if (!result.TimedOut && result.ExitCode == 0)
+            {
+                foreach (string line in (result.Output ?? "").Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+                {
+                    string value = RedactSensitive(line.Trim());
+                    if (value.StartsWith("task|", StringComparison.OrdinalIgnoreCase)) lines.Add(value);
+                }
+            }
+            if (lines.Count == 0)
+            {
+                CommandResult fallback = RecoveryEngine.RunProcess("schtasks.exe", "/query /fo CSV /nh /v", 30000);
+                foreach (string line in (fallback.Output ?? "").Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+                {
+                    string value = RedactSensitive(line.Trim());
+                    if (IsSourceCandidate(value)) lines.Add("legacy-task|" + value);
+                }
+            }
+            return lines;
         }
 
         private static IEnumerable<string> ReadPowerShellOperationalLog()
         {
             CommandResult result = RecoveryEngine.RunProcess(
                 "wevtutil.exe",
-                "qe Microsoft-Windows-PowerShell/Operational /q:\"*[System[(EventID=400 or EventID=4103 or EventID=4104)]]\" /c:8 /rd:true /f:text",
+                "qe Microsoft-Windows-PowerShell/Operational /q:\"*[System[(EventID=400 or EventID=4103 or EventID=4104) and TimeCreated[timediff(@SystemTime) <= 86400000]]]\" /c:8 /rd:true /f:text",
                 15000);
             if (result.TimedOut || result.ExitCode != 0) yield break;
             foreach (string line in (result.Output ?? "").Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
             {
                 string value = line.Trim();
-                if (value.Length > 0) yield return value;
+                if (value.Length > 0 && (IsOperationalEvidence(value) || value.StartsWith("Date", StringComparison.OrdinalIgnoreCase) || value.StartsWith("Event ID", StringComparison.OrdinalIgnoreCase))) yield return RedactSensitive(value);
             }
         }
 
@@ -481,23 +536,78 @@ namespace CodexRecoveryCenter
                     using (var log = new EventLog(logName))
                     {
                         int scanned = 0;
+                        DateTime cutoff = DateTime.Now.AddHours(-24);
                         for (int index = log.Entries.Count - 1; index >= 0 && scanned < 250; index--, scanned++)
                         {
                             EventLogEntry entry;
                             try { entry = log.Entries[index]; } catch { continue; }
+                            if (entry.TimeGenerated < cutoff) break;
                             long eventId = entry.InstanceId & 0xFFFF;
                             bool processCreation = logName.Equals("Security", StringComparison.OrdinalIgnoreCase)
                                 ? eventId == 4688
                                 : eventId == 1;
                             if (!processCreation) continue;
                             string data = String.Join(" | ", entry.ReplacementStrings ?? new string[0]);
-                            lines.Add(logName + " event=" + eventId + "; time=" + entry.TimeGenerated.ToString("O") +
-                                "; data=" + OneLine(data, 460));
+                            lines.Add(RedactSensitive(logName + " event=" + eventId + "; time=" + entry.TimeGenerated.ToString("O") +
+                                "; data=" + OneLine(data, 460)));
                         }
                     }
                 }
                 catch { }
             }
+            return lines;
+        }
+
+        private static IEnumerable<string> ReadServiceEvidence()
+        {
+            string script =
+                "$pattern='powershell|pwsh|cmd\\.exe|wscript|cscript|\\.ps1|\\.vbs|\\.bat|\\.cmd|cloudflared|tunnel|updater|sync|dida|滴答|工作台|团建|D:\\\\AICode';" +
+                "Get-CimInstance Win32_Service -ErrorAction SilentlyContinue | ForEach-Object { $hay=($_.Name+' '+$_.DisplayName+' '+$_.PathName); if($hay -match $pattern) { 'service|name='+$_.Name+'|display='+$_.DisplayName+'|state='+$_.State+'|start='+$_.StartMode+'|path='+$_.PathName } }";
+            CommandResult result = RecoveryEngine.RunPowerShell(script, 20000);
+            if (result.TimedOut || result.ExitCode != 0) return new string[0];
+            return (result.Output ?? "").Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(value => RedactSensitive(value.Trim())).Where(value => value.StartsWith("service|", StringComparison.OrdinalIgnoreCase)).ToArray();
+        }
+
+        private static IEnumerable<string> ReadLiveShellEvidence()
+        {
+            var lines = new List<string>();
+            try
+            {
+                using (var searcher = new ManagementObjectSearcher("SELECT ProcessId,Name,CommandLine,ParentProcessId,CreationDate FROM Win32_Process WHERE Name='powershell.exe' OR Name='pwsh.exe' OR Name='cmd.exe'"))
+                using (ManagementObjectCollection items = searcher.Get())
+                foreach (ManagementObject item in items)
+                {
+                    string name = Convert.ToString(item["Name"]);
+                    string command = RedactSensitive(OneLine(Convert.ToString(item["CommandLine"]), 360));
+                    string parentPid = Convert.ToString(item["ParentProcessId"]);
+                    string parent = "unknown";
+                    try { using (Process process = Process.GetProcessById(Convert.ToInt32(parentPid))) parent = process.ProcessName; } catch { }
+                    lines.Add("live|name=" + name + "|pid=" + Convert.ToString(item["ProcessId"]) + "|parentPid=" + parentPid + "|parent=" + parent + "|created=" + Convert.ToString(item["CreationDate"]) + "|command=" + command);
+                }
+            }
+            catch { }
+            return lines;
+        }
+
+        private static IEnumerable<string> ReadProfileEvidence(string path)
+        {
+            if (!File.Exists(path)) return new string[0];
+            var lines = new List<string>();
+            try
+            {
+                string[] content = File.ReadAllLines(path, Encoding.Default).Take(240).ToArray();
+                int matched = 0;
+                for (int index = 0; index < content.Length; index++)
+                {
+                    if (!IsSourceCandidate(content[index])) continue;
+                    lines.Add("profile=" + path + "|line=" + (index + 1) + "|text=" + RedactSensitive(OneLine(content[index], 360)));
+                    matched++;
+                    if (matched >= 8) break;
+                }
+                if (matched == 0) lines.Add("profile=" + path + "|exists=true|scriptEvidence=none");
+            }
+            catch (Exception ex) { lines.Add("profile=" + path + "|readError=" + RedactSensitive(OneLine(ex.Message))); }
             return lines;
         }
 
@@ -521,6 +631,81 @@ namespace CodexRecoveryCenter
             string value = line ?? "";
             string[] needles = { "powershell.exe", "pwsh.exe", "cmd.exe", ".ps1", ".vbs", ".bat", ".cmd", "D:\\AICode", "Start-Process", "schtasks", "-File", "-Command" };
             return needles.Any(value.IndexOfIgnoreCase);
+        }
+
+        private static bool IsSourceCandidate(string line)
+        {
+            string value = line ?? "";
+            if (value.IndexOf("scriptEvidence=none", StringComparison.OrdinalIgnoreCase) >= 0) return false;
+            string[] needles = { "powershell", "pwsh", "cmd.exe", "wscript", "cscript", ".ps1", ".vbs", ".bat", ".cmd", "cloudflared", "tunnel", "updater", "start-process", "schtasks", "D:\\AICode", "同步", "滴答", "工作台", "团建" };
+            return needles.Any(value.IndexOfIgnoreCase);
+        }
+
+        private static bool IsKnownSource(string line)
+        {
+            string value = line ?? "";
+            string[] markers =
+            {
+                "D:\\AICode\\AI\\skills\\技能包\\技能\\aicode-system-quality-check\\",
+                "D:\\AICode\\AI\\infrastructure\\launchers\\start-openclaw-control-gateway.ps1",
+                "D:\\AICode\\AI\\infrastructure\\launchers\\start-shared-memory-gateway.ps1",
+                "D:\\AICode\\AI\\skills\\技能包\\技能\\AI协作\\鼠标快速语音打字\\",
+                "D:\\AICode\\项目推进\\projects\\江湖有旅人\\主项目\\daily_report.ps1",
+                "microsoft\\windows\\", "onedrive", "syncthing", "openclaw",
+                "aicode system quality check", "jianghudailyreport", "wechat voice x2",
+                "鼠标快速语音打字", "windows repair center", "codexrecoverycenter"
+            };
+            return markers.Any(value.IndexOfIgnoreCase);
+        }
+
+        private static bool RegisterEvidence(HashSet<string> groups, string kind, string line)
+        {
+            string value = line ?? "";
+            string key = kind;
+            if (kind == "run" || kind == "startup" || kind == "task" || kind == "service" || kind == "profile")
+            {
+                int separator = value.IndexOf("|action=", StringComparison.OrdinalIgnoreCase);
+                if (separator < 0) separator = value.IndexOf("|path=", StringComparison.OrdinalIgnoreCase);
+                if (separator < 0) separator = value.IndexOf("|line=", StringComparison.OrdinalIgnoreCase);
+                key += ":" + (separator >= 0 ? value.Substring(0, separator) : value);
+            }
+            return groups.Add(key);
+        }
+
+        private static bool IsLiveShellCandidate(string line)
+        {
+            string value = line ?? "";
+            int commandIndex = value.IndexOf("|command=", StringComparison.OrdinalIgnoreCase);
+            string command = commandIndex >= 0 ? value.Substring(commandIndex + 9) : value;
+            return IsActionEvidence(command);
+        }
+
+        private static bool IsActionEvidence(string line)
+        {
+            string value = line ?? "";
+            string[] needles = { "-file", "-command", ".ps1", ".vbs", ".bat", ".cmd", "start-process", "schtasks", "D:\\AICode", "D:\\AI编程", "cloudflared", "tunnel", "updater", "sync", "滴答", "工作台", "团建" };
+            return needles.Any(value.IndexOfIgnoreCase);
+        }
+
+        private static string DescribeSource(string line)
+        {
+            string value = line ?? "";
+            if (value.IndexOf("powershell", StringComparison.OrdinalIgnoreCase) >= 0 || value.IndexOf("pwsh", StringComparison.OrdinalIgnoreCase) >= 0) return "PowerShell";
+            if (value.IndexOf("cmd.exe", StringComparison.OrdinalIgnoreCase) >= 0) return "CMD";
+            if (value.IndexOf("wscript", StringComparison.OrdinalIgnoreCase) >= 0 || value.IndexOf("cscript", StringComparison.OrdinalIgnoreCase) >= 0 || value.IndexOf(".vbs", StringComparison.OrdinalIgnoreCase) >= 0) return "脚本宿主";
+            if (value.IndexOf("cloudflared", StringComparison.OrdinalIgnoreCase) >= 0 || value.IndexOf("tunnel", StringComparison.OrdinalIgnoreCase) >= 0) return "隧道/网络工具";
+            if (value.IndexOf("D:\\AICode", StringComparison.OrdinalIgnoreCase) >= 0) return "本地工作台";
+            if (value.IndexOf("updater", StringComparison.OrdinalIgnoreCase) >= 0) return "更新器";
+            return "启动来源";
+        }
+
+        private static string RedactSensitive(string value)
+        {
+            if (String.IsNullOrWhiteSpace(value)) return value ?? "";
+            string redacted = Regex.Replace(value, "(?i)(password|passwd|token|api[_-]?key|secret|authorization|cookie)\\s*[=:]\\s*(\\\"[^\\\"]*\\\"|'[^']*'|[^\\s|;]+)", "$1=<redacted>");
+            redacted = Regex.Replace(redacted, "(?i)([?&](?:token|key|secret|password)=)[^&\\s]+", "$1<redacted>");
+            redacted = Regex.Replace(redacted, "(?i)(--?(?:token|api[-_]?key|secret|password|cookie|authorization)\\s+)[^\\s|;]+", "$1<redacted>");
+            return Regex.Replace(redacted, "(?i)(Bearer\\s+)[^\\s|;]+", "$1<redacted>");
         }
     }
 
