@@ -741,21 +741,31 @@ namespace CodexRecoveryCenter
 
         public static CommandResult RunPowerShell(string script, int timeoutMs)
         {
-            string encoded = Convert.ToBase64String(Encoding.Unicode.GetBytes(script));
+            // Windows PowerShell inherits the host code page.  Without an explicit
+            // UTF-8 output encoding, Chinese device/task names are returned as
+            // replacement characters even though the WinForms UI itself is fine.
+            string utf8 = "[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false); " + (script ?? "");
+            string encoded = Convert.ToBase64String(Encoding.Unicode.GetBytes(utf8));
             return RunProcess(
                 Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "WindowsPowerShell",
                     "v1.0", "powershell.exe"),
                 "-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand " + encoded,
-                timeoutMs);
+                timeoutMs, null, Encoding.UTF8);
         }
 
         public static CommandResult RunProcess(string file, string args, int timeoutMs)
         {
-            return RunProcess(file, args, timeoutMs, null);
+            return RunProcess(file, args, timeoutMs, null, Encoding.Default);
         }
 
         public static CommandResult RunProcess(string file, string args, int timeoutMs,
             Action<int> elapsedProgress)
+        {
+            return RunProcess(file, args, timeoutMs, elapsedProgress, Encoding.Default);
+        }
+
+        private static CommandResult RunProcess(string file, string args, int timeoutMs,
+            Action<int> elapsedProgress, Encoding outputEncoding)
         {
             var result = new CommandResult();
             using (var process = new Process())
@@ -768,8 +778,10 @@ namespace CodexRecoveryCenter
                     CreateNoWindow = true,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
-                    StandardOutputEncoding = Encoding.UTF8,
-                    StandardErrorEncoding = Encoding.UTF8
+                    // Native Windows tools use the active OEM/ANSI code page;
+                    // PowerShell is the only path that explicitly emits UTF-8.
+                    StandardOutputEncoding = outputEncoding ?? Encoding.Default,
+                    StandardErrorEncoding = outputEncoding ?? Encoding.Default
                 };
                 var output = new StringBuilder();
                 process.OutputDataReceived += (s, e) => { if (e.Data != null) output.AppendLine(e.Data); };

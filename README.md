@@ -1,6 +1,6 @@
 # Windows 修复中心
 
-当前版本：2.0.0
+当前版本：2.0.1
 
 这是一个只在本机运行的 Windows 诊断与修复工作台。Codex 是其中一个模块，同时覆盖蓝牙音频、鼠标语音输入、PowerShell/CMD 弹窗来源、网络诊断、启动项、临时文件和开发环境资源治理。所有模块都遵循“先诊断、低风险修复、修复后验证；高风险动作单独确认”的规则。
 
@@ -8,7 +8,7 @@
 
 双击桌面 `Windows 修复中心`：
 
-- **开始检查**：并行读取各模块状态，显示时间、进程、父进程、命令行、脚本或任务来源等证据。
+- **开始检查**：并行读取各模块状态，显示时间、进程、父进程、命令行、脚本或任务来源等证据。每个模块最多等待 45 秒，单个 Windows 接口异常不会拖住整页。
 - **执行建议修复**：只执行当前模块声明的安全动作；修复前显示影响，修复后重新检测。
 - **蓝牙音频**：刷新目标音频服务，验证端点状态；不默认卸载驱动。
 - **鼠标语音输入**：检查 watchdog、PID、心跳和隐藏任务，必要时只运行已注册任务。
@@ -58,10 +58,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\Build.ps1 -InstallDe
 ## 本地数据
 
 ```text
-日志：%LOCALAPPDATA%\CodexRecoveryCenter\logs
-设置：%LOCALAPPDATA%\CodexRecoveryCenter\settings.ini
-资源守卫状态与脱敏日志：%LOCALAPPDATA%\CodexRecoveryCenter\resource-guard
-更新：%LOCALAPPDATA%\CodexRecoveryCenter\updates
+日志：%LOCALAPPDATA%\WindowsRepairCenter\logs
+设置：%LOCALAPPDATA%\WindowsRepairCenter\settings.ini
+资源守卫状态与脱敏日志：%LOCALAPPDATA%\CodexRecoveryCenter\resource-guard（资源守卫任务为兼容旧版保留此目录）
+更新：%LOCALAPPDATA%\WindowsRepairCenter\updates
+
+如果看到 PowerShell 输出乱码：修复中心调用的 Windows PowerShell 会先切换为 UTF-8；请从桌面“Windows 修复中心”入口启动，不要在旧的 Codex 恢复中心副本上操作。
 ```
 
 项目不会上传聊天内容、凭据或本地诊断日志。

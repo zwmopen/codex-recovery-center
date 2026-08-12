@@ -664,16 +664,18 @@ namespace CodexRecoveryCenter
             sessionLog = Path.Combine(RepairCenterPaths.Logs, "session-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".log");
 
             Text = "Windows 修复中心";
-            ClientSize = new Size(1160, 720);
-            MinimumSize = new Size(980, 620);
+            // Keep the first view readable on a 100% 1366px display and leave
+            // enough room for the evidence pane without forcing tiny controls.
+            ClientSize = new Size(1280, 760);
+            MinimumSize = new Size(1100, 640);
             StartPosition = FormStartPosition.CenterScreen;
             Font = new Font("Microsoft YaHei UI", 9F);
             AutoScaleMode = AutoScaleMode.Dpi;
             DoubleBuffered = true;
             TrySetIcon();
 
-            var root = new TableLayoutPanel { Dock = DockStyle.Fill, BackColor = Color.Transparent, Padding = new Padding(30, 22, 30, 18), ColumnCount = 1, RowCount = 3 };
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 54F));
+            var root = new TableLayoutPanel { Dock = DockStyle.Fill, BackColor = Color.Transparent, Padding = new Padding(30, 18, 30, 14), ColumnCount = 1, RowCount = 3 };
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 48F));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 28F));
             Controls.Add(root);
@@ -688,14 +690,14 @@ namespace CodexRecoveryCenter
             root.Controls.Add(header, 0, 0);
 
             var body = new TableLayoutPanel { Dock = DockStyle.Fill, BackColor = Color.Transparent, ColumnCount = 2, RowCount = 1, Margin = new Padding(0, 8, 0, 8) };
-            body.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 258F));
+            body.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 286F));
             body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
             root.Controls.Add(body, 0, 1);
 
             var sidebar = new SoftPanel { Dock = DockStyle.Fill, CornerRadius = 22, Tag = "card", Padding = new Padding(18, 18, 18, 14), Margin = new Padding(0, 0, 22, 0) };
-            healthLabel = MakeLabel("正在检查", 0, 0, 13F, FontStyle.Bold, "title");
-            healthDetail = MakeLabel("发现问题后只修复已确认的安全规则", 0, 30, 8.5F, FontStyle.Regular, "muted");
-            healthDetail.AutoSize = false; healthDetail.Width = 210; healthDetail.Height = 38;
+            healthLabel = MakeLabel("准备检查", 0, 0, 13F, FontStyle.Bold, "title");
+            healthDetail = MakeLabel("将读取本机状态，不会上传诊断内容", 0, 30, 8.5F, FontStyle.Regular, "muted");
+            healthDetail.AutoSize = false; healthDetail.Width = 238; healthDetail.Height = 38;
             moduleList = new FlowLayoutPanel { Location = new Point(0, 84), Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true, BackColor = Color.Transparent, Padding = new Padding(0) };
             sidebar.Controls.AddRange(new Control[] { healthLabel, healthDetail, moduleList });
             body.Controls.Add(sidebar, 0, 0);
@@ -737,7 +739,7 @@ namespace CodexRecoveryCenter
             moduleList.Controls.Clear();
             foreach (IRepairModule module in modules)
             {
-                SoftButton button = MakeButton(module.Title, 0, 0, 214, 42, ButtonVisualRole.Ghost);
+                SoftButton button = MakeButton(module.Title, 0, 0, 238, 42, ButtonVisualRole.Ghost);
                 button.TextAlign = ContentAlignment.MiddleLeft;
                 button.Margin = new Padding(0, 0, 0, 7);
                 button.Tag = module.Id;
@@ -753,27 +755,36 @@ namespace CodexRecoveryCenter
             moduleCaption.Text = module.Caption;
             RepairFinding finding;
             if (!findings.TryGetValue(module.Id, out finding))
-                finding = new RepairFinding { Title = module.Title, Summary = "等待扫描。", Status = RepairFindingStatus.Normal, ModuleId = module.Id };
+            {
+                RenderPending(module);
+                return;
+            }
             RenderFinding(finding);
         }
 
         private async Task ScanAllAsync()
         {
             if (busy) return;
-            busy = true; scanButton.Enabled = false; repairButton.Enabled = false; progress.Visible = true; healthLabel.Text = "正在检查…";
+            busy = true; scanButton.Enabled = false; repairButton.Enabled = false; progress.Visible = true;
+            healthLabel.Text = "正在检查…";
+            healthDetail.Text = "正在并行读取 " + modules.Count + " 个模块；请稍候。";
+            findings.Clear();
+            RenderPending(selectedModule, "正在读取本机状态…");
             WriteLog("开始全量只读检查");
             try
             {
-                List<RepairFinding> results = await Task.Run(() => modules.Select(module => module.Detect()).ToList());
-                findings.Clear();
+                RepairFinding[] results = await Task.WhenAll(modules.Select(DetectWithTimeoutAsync));
                 foreach (RepairFinding finding in results) findings[finding.ModuleId] = finding;
                 foreach (RepairFinding finding in results) WriteLog(finding.Title + "：" + finding.StatusText + "；" + finding.Summary);
-                UpdateHealth(results);
+                UpdateHealth(results.ToList());
                 SelectModule(selectedModule);
             }
             catch (Exception ex)
             {
-                healthLabel.Text = "检查失败"; healthDetail.Text = ex.Message; WriteLog("全量检查失败：" + ex);
+                healthLabel.Text = "检查未完成";
+                healthDetail.Text = "本次检查遇到异常，但不会影响已完成的模块。";
+                RenderPending(selectedModule, "检查未完成：" + ex.Message);
+                WriteLog("全量检查失败：" + ex);
             }
             finally
             {
@@ -837,6 +848,60 @@ namespace CodexRecoveryCenter
             repairButton.Text = finding.CanRepair ? (String.IsNullOrWhiteSpace(finding.RepairLabel) ? "执行修复" : finding.RepairLabel) : "当前无需修复";
             repairButton.Enabled = !busy && finding.CanRepair;
             ThemeManager.Apply(this, SettingsStore.Load().Theme);
+        }
+
+        private void RenderPending(IRepairModule module, string message = null)
+        {
+            moduleTitle.Text = module.Title;
+            moduleCaption.Text = module.Caption;
+            moduleStatus.Text = "等待检查 · " + (String.IsNullOrWhiteSpace(message) ? "点击“开始检查”读取本机状态。" : message);
+            moduleStatus.Tag = "warning";
+            evidenceBox.Text = "当前模块还没有诊断结果。\r\n" +
+                (String.IsNullOrWhiteSpace(message) ? "点击“开始检查”后，这里会显示状态、风险和证据链。" : "检查完成后，这里会显示状态、风险和证据链。") +
+                "\r\n\r\n扫描过程只读，不会自动删除文件或隐藏窗口。";
+            repairButton.Text = "等待检查";
+            repairButton.Enabled = false;
+            ThemeManager.Apply(this, SettingsStore.Load().Theme);
+        }
+
+        private static RepairFinding DetectSafely(IRepairModule module)
+        {
+            try
+            {
+                return module.Detect();
+            }
+            catch (Exception ex)
+            {
+                return new RepairFinding
+                {
+                    ModuleId = module.Id,
+                    Title = module.Title,
+                    Status = RepairFindingStatus.Error,
+                    Summary = "该模块检查失败，其他模块仍已完成。",
+                    Detail = ex.Message,
+                    Risk = "只读",
+                    CheckedAt = DateTime.Now
+                };
+            }
+        }
+
+        private static async Task<RepairFinding> DetectWithTimeoutAsync(IRepairModule module)
+        {
+            Task<RepairFinding> detection = Task.Run(() => DetectSafely(module));
+            Task completed = await Task.WhenAny(detection, Task.Delay(45000));
+            if (completed == detection)
+                return await detection;
+
+            return new RepairFinding
+            {
+                ModuleId = module.Id,
+                Title = module.Title,
+                Status = RepairFindingStatus.Error,
+                Summary = "检查超时，已跳过该模块；其他模块仍可用。",
+                Detail = "外部 Windows 接口超过 45 秒没有返回。可稍后单独重新检查。",
+                Risk = "只读",
+                CheckedAt = DateTime.Now
+            };
         }
 
         private void SaveReport()

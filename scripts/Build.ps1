@@ -35,6 +35,10 @@ $sourceCommit = (& git -C $projectRoot rev-parse HEAD 2>$null)
 if ($LASTEXITCODE -ne 0) {
     $sourceCommit = 'uncommitted'
 }
+$dirty = (& git -C $projectRoot status --porcelain 2>$null)
+if (-not [String]::IsNullOrWhiteSpace(($dirty -join "`n"))) {
+    $sourceCommit = 'uncommitted'
+}
 $manifest = [ordered]@{
     project = 'windows-repair-center'
     version = $version
@@ -66,7 +70,11 @@ if ($InstallDesktopShortcut) {
     $shell = New-Object -ComObject WScript.Shell
     $shortcut = $shell.CreateShortcut($shortcutPath)
     $launcher = Join-Path $PSScriptRoot 'run-windows-repair-center.vbs'
-    $shortcut.TargetPath = Join-Path $env:WINDIR 'System32\wscript.exe'
+    # Some minimal PowerShell hosts do not define WINDIR even though Windows is
+    # present.  SystemRoot is the stable environment variable for the launcher.
+    $systemRoot = [Environment]::GetEnvironmentVariable('SystemRoot')
+    if ([String]::IsNullOrWhiteSpace($systemRoot)) { $systemRoot = 'C:\Windows' }
+    $shortcut.TargetPath = Join-Path $systemRoot 'System32\wscript.exe'
     $shortcut.Arguments = '"' + $launcher + '"'
     $shortcut.WorkingDirectory = $projectRoot
     $shortcut.IconLocation = "$release,0"
