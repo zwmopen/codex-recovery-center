@@ -1,15 +1,16 @@
 # 开发交接
 
 最后核对：2026-08-12
-当前版本：2.0.1
+当前版本：2.1.0
 
-## 2.0.1 当前交付状态
+## 2.1.0 当前交付状态
 
 - 产品已升级为“Windows 修复中心”，入口为 `src\WindowsRepairCenter.cs` 的统一模块化 WinForms 外壳。
 - P0 模块已接入：Codex、蓝牙音频、鼠标语音输入、PowerShell/CMD 弹窗审计、网络诊断、电脑加速与空间、启动项与桌面入口。
+- 2026-08-12 增加“电脑概览”首屏和只读“存储分析”模块；存储候选按可重建缓存/用户资料分级，默认不提供删除动作。
 - 诊断默认只读；修复动作由模块声明，UI 在执行前显示影响并在执行后重新检测。
-- 真实构建通过：`releases\Windows-Repair-Center.exe`，版本 `2.0.1`。
-- `--repair-center-self-test` 已在当前电脑通过，读取七个模块状态并返回退出码 0。
+- 真实构建通过：`releases\Windows-Repair-Center.exe`，版本 `2.1.0`。
+- `--repair-center-self-test` 已在当前电脑通过，读取八个模块状态并返回退出码 0。
 - 桌面已创建 `C:\Users\z\Desktop\Windows 修复中心.lnk`；旧的三个入口已备份到 `%LOCALAPPDATA%\WindowsRepairCenter\backups\desktop-shortcuts\20260811-131305` 后移出桌面。
 - 构建脚本 `scripts\Build.ps1 -InstallDesktopShortcut` 会在源码构建成功后更新入口；构建失败不会覆盖最后一个可用 EXE。
 - 2026-08-12 已修复：PowerShell 中文输出编码、首次扫描状态矛盾、串行扫描造成的“像卡死”、单模块超时隔离，以及构建环境缺少 `WINDIR` 时快捷方式更新失败。全量检查现为并行执行，单模块 45 秒超时后继续；原生 Windows 命令仍使用系统编码读取。

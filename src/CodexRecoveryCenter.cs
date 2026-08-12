@@ -80,6 +80,7 @@ namespace CodexRecoveryCenter
                         new MouseVoiceRepairModule(),
                         new PopupAuditRepairModule(),
                         new NetworkRepairModule(),
+                        new StorageAnalysisModule(),
                         new PerformanceRepairModule(),
                         new StartupRepairModule()
                     };

@@ -1,14 +1,14 @@
 ﻿{
     "project":  "windows-repair-center",
-    "version":  "2.0.1",
+    "version":  "2.1.0",
     "source_commit":  "uncommitted",
     "build_date":  "2026-08-12",
     "platform":  "Windows x64 / .NET Framework WinForms",
     "artifacts":  [
                       {
-                          "file":  "Windows-Repair-Center-v2.0.1.exe",
-                          "sha256":  "AE29DC0E69832E26C9A00C1C65B11EDE0CD2FA93138C95522CFD3C4A15686536",
-                          "bytes":  160768
+                          "file":  "Windows-Repair-Center-v2.1.0.exe",
+                          "sha256":  "E75B592C5D4877CF77A2C48A4A6345D48D476BDA606F67A17CAD9850BAEA38BB",
+                          "bytes":  166912
                       }
                   ],
     "known_limitations":  [

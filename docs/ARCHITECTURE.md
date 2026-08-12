@@ -11,6 +11,7 @@ WindowsRepairCenterForm / WindowsToolShell
   ├─ MouseVoiceRepairModule：watchdog、PID、心跳与隐藏任务
   ├─ PopupAuditRepairModule：Task Scheduler、Startup、Run/RunOnce、profile、Event Log
   ├─ NetworkRepairModule：网卡、DNS、代理、Cloudflare/tunnel 只读诊断与 DNS 刷新
+  ├─ StorageAnalysisModule：磁盘容量、缓存候选与用户资料只读分级
   ├─ PerformanceRepairModule：内存、临时文件、开发进程白名单与资源守卫
   └─ StartupRepairModule：启动项、桌面入口、备份与迁移记录
 ```

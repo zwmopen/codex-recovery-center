@@ -508,6 +508,136 @@ namespace CodexRecoveryCenter
         }
     }
 
+    internal sealed class StorageAnalysisModule : RepairModuleBase
+    {
+        public override string Id { get { return "storage"; } }
+        public override string Title { get { return "存储分析"; } }
+        public override string Caption { get { return "磁盘总览、缓存候选与用户数据边界"; } }
+
+        public override RepairFinding Detect()
+        {
+            try
+            {
+                RepairFinding finding = Finding(RepairFindingStatus.Normal,
+                    "已完成只读存储分析。", false, "",
+                    "绿色项目是可重建缓存，黄色项目是用户资料；本模块不会自动删除文件。", "只读，不修改文件");
+                int measured = 0;
+                long greenBytes = 0;
+                long reviewBytes = 0;
+
+                foreach (DriveInfo drive in DriveInfo.GetDrives())
+                {
+                    try
+                    {
+                        if (!drive.IsReady) continue;
+                        long used = drive.TotalSize - drive.AvailableFreeSpace;
+                        Add(finding, "磁盘 " + drive.Name + "：已用 " + FormatBytes(used) + " / " + FormatBytes(drive.TotalSize) + "；可用 " + FormatBytes(drive.AvailableFreeSpace));
+                    }
+                    catch (Exception ex) { Add(finding, "磁盘读取失败：" + OneLine(ex.Message)); }
+                }
+
+                foreach (StorageCandidate candidate in Candidates())
+                {
+                    if (!Directory.Exists(candidate.Path)) continue;
+                    long size = MeasureDirectory(candidate.Path, 2, 12000, 4000);
+                    if (size <= 0) continue;
+                    measured++;
+                    if (candidate.Green) greenBytes += size; else reviewBytes += size;
+                    Add(finding, (candidate.Green ? "绿色·可重建缓存" : "黄色·用户资料") + "：" + candidate.Title + "；" + candidate.Path + "；约 " + FormatBytes(size));
+                }
+
+                finding.Summary = measured == 0
+                    ? "已读取磁盘容量，未发现可测量的候选目录。"
+                    : "已分析 " + measured + " 个候选目录；可重建缓存约 " + FormatBytes(greenBytes) + "，用户资料约 " + FormatBytes(reviewBytes) + "。";
+                if (greenBytes >= 512L * 1024L * 1024L)
+                {
+                    finding.Status = RepairFindingStatus.NeedsAttention;
+                    finding.Detail = "建议先处理绿色缓存；下载、聊天、项目和 D:\\AICode 只提供路径与大小，不提供自动删除按钮。";
+                }
+                return finding;
+            }
+            catch (Exception ex)
+            {
+                return Finding(RepairFindingStatus.Error, "存储分析失败。", false, "", OneLine(ex.Message), "只读");
+            }
+        }
+
+        private static IEnumerable<StorageCandidate> Candidates()
+        {
+            string user = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            string local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            yield return new StorageCandidate("临时文件", Path.GetTempPath(), true);
+            yield return new StorageCandidate("用户缓存目录", Path.Combine(user, ".cache"), true);
+            yield return new StorageCandidate("npm 缓存", Path.Combine(user, ".npm"), true);
+            yield return new StorageCandidate("pip 缓存", Path.Combine(local, "pip", "Cache"), true);
+            yield return new StorageCandidate("Chrome 默认配置缓存", Path.Combine(local, "Google", "Chrome", "User Data", "Default", "Cache"), true);
+            yield return new StorageCandidate("下载目录", Path.Combine(user, "Downloads"), false);
+            yield return new StorageCandidate("开发资料", @"D:\AICode", false);
+        }
+
+        private static long MeasureDirectory(string path, int maxDepth, int maxEntries, int maxMilliseconds)
+        {
+            long total = 0;
+            int entries = 0;
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            var pending = new Stack<DirectoryNode>();
+            pending.Push(new DirectoryNode(path, 0));
+            while (pending.Count > 0 && entries < maxEntries && stopwatch.ElapsedMilliseconds < maxMilliseconds)
+            {
+                DirectoryNode node = pending.Pop();
+                try
+                {
+                    foreach (FileInfo file in new DirectoryInfo(node.Path).GetFiles())
+                    {
+                        if (++entries > maxEntries || stopwatch.ElapsedMilliseconds >= maxMilliseconds) break;
+                        try { total += file.Length; } catch { }
+                    }
+                    if (node.Depth >= maxDepth) continue;
+                    foreach (DirectoryInfo directory in new DirectoryInfo(node.Path).GetDirectories())
+                    {
+                        if (entries >= maxEntries || stopwatch.ElapsedMilliseconds >= maxMilliseconds) break;
+                        pending.Push(new DirectoryNode(directory.FullName, node.Depth + 1));
+                    }
+                }
+                catch { }
+            }
+            return total;
+        }
+
+        private static string FormatBytes(long bytes)
+        {
+            if (bytes < 1024L * 1024L) return (bytes / 1024L) + " KB";
+            if (bytes < 1024L * 1024L * 1024L) return (bytes / 1024D / 1024D).ToString("F1") + " MB";
+            return (bytes / 1024D / 1024D / 1024D).ToString("F1") + " GB";
+        }
+
+        private sealed class StorageCandidate
+        {
+            public readonly string Title;
+            public readonly string Path;
+            public readonly bool Green;
+            public StorageCandidate(string title, string path, bool green) { Title = title; Path = path; Green = green; }
+        }
+
+        private sealed class DirectoryNode
+        {
+            public readonly string Path;
+            public readonly int Depth;
+            public DirectoryNode(string path, int depth) { Path = path; Depth = depth; }
+        }
+    }
+
+    internal sealed class OverviewRepairModule : RepairModuleBase
+    {
+        public override string Id { get { return "overview"; } }
+        public override string Title { get { return "电脑概览"; } }
+        public override string Caption { get { return "先看结论，再决定是否处理"; } }
+        public override RepairFinding Detect()
+        {
+            return Finding(RepairFindingStatus.Normal, "等待其他模块完成检查。", false, "", "从左侧选择具体问题查看证据和下一步。", "只读");
+        }
+    }
+
     internal sealed class PerformanceRepairModule : RepairModuleBase
     {
         public override string Id { get { return "performance"; } }
@@ -632,6 +762,7 @@ namespace CodexRecoveryCenter
     internal sealed class WindowsRepairCenterForm : ThemedForm
     {
         private readonly List<IRepairModule> modules;
+        private readonly IRepairModule overviewModule;
         private readonly Dictionary<string, RepairFinding> findings = new Dictionary<string, RepairFinding>();
         private readonly FlowLayoutPanel moduleList;
         private readonly Label healthLabel;
@@ -650,6 +781,7 @@ namespace CodexRecoveryCenter
 
         public WindowsRepairCenterForm()
         {
+            overviewModule = new OverviewRepairModule();
             modules = new List<IRepairModule>
             {
                 new CodexRepairModule(),
@@ -657,10 +789,11 @@ namespace CodexRecoveryCenter
                 new MouseVoiceRepairModule(),
                 new PopupAuditRepairModule(),
                 new NetworkRepairModule(),
+                new StorageAnalysisModule(),
                 new PerformanceRepairModule(),
                 new StartupRepairModule()
             };
-            selectedModule = modules[0];
+            selectedModule = overviewModule;
             sessionLog = Path.Combine(RepairCenterPaths.Logs, "session-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".log");
 
             Text = "Windows 修复中心";
@@ -690,15 +823,15 @@ namespace CodexRecoveryCenter
             root.Controls.Add(header, 0, 0);
 
             var body = new TableLayoutPanel { Dock = DockStyle.Fill, BackColor = Color.Transparent, ColumnCount = 2, RowCount = 1, Margin = new Padding(0, 8, 0, 8) };
-            body.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 286F));
+            body.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 310F));
             body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
             root.Controls.Add(body, 0, 1);
 
             var sidebar = new SoftPanel { Dock = DockStyle.Fill, CornerRadius = 22, Tag = "card", Padding = new Padding(18, 18, 18, 14), Margin = new Padding(0, 0, 22, 0) };
             healthLabel = MakeLabel("准备检查", 0, 0, 13F, FontStyle.Bold, "title");
             healthDetail = MakeLabel("将读取本机状态，不会上传诊断内容", 0, 30, 8.5F, FontStyle.Regular, "muted");
-            healthDetail.AutoSize = false; healthDetail.Width = 238; healthDetail.Height = 38;
-            moduleList = new FlowLayoutPanel { Location = new Point(0, 84), Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true, BackColor = Color.Transparent, Padding = new Padding(0) };
+            healthDetail.AutoSize = false; healthDetail.Width = 262; healthDetail.Height = 44;
+            moduleList = new FlowLayoutPanel { Location = new Point(0, 94), Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true, BackColor = Color.Transparent, Padding = new Padding(0) };
             sidebar.Controls.AddRange(new Control[] { healthLabel, healthDetail, moduleList });
             body.Controls.Add(sidebar, 0, 0);
 
@@ -737,9 +870,14 @@ namespace CodexRecoveryCenter
         private void BuildModuleButtons()
         {
             moduleList.Controls.Clear();
+            SoftButton overviewButton = MakeButton(overviewModule.Title, 0, 0, 262, 42, ButtonVisualRole.Ghost);
+            overviewButton.TextAlign = ContentAlignment.MiddleLeft;
+            overviewButton.Margin = new Padding(0, 0, 0, 7);
+            overviewButton.Click += (s, e) => SelectModule(overviewModule);
+            moduleList.Controls.Add(overviewButton);
             foreach (IRepairModule module in modules)
             {
-                SoftButton button = MakeButton(module.Title, 0, 0, 238, 42, ButtonVisualRole.Ghost);
+                SoftButton button = MakeButton(module.Title, 0, 0, 262, 42, ButtonVisualRole.Ghost);
                 button.TextAlign = ContentAlignment.MiddleLeft;
                 button.Margin = new Padding(0, 0, 0, 7);
                 button.Tag = module.Id;
@@ -751,6 +889,11 @@ namespace CodexRecoveryCenter
         private void SelectModule(IRepairModule module)
         {
             selectedModule = module;
+            if (module.Id == overviewModule.Id)
+            {
+                RenderOverview();
+                return;
+            }
             moduleTitle.Text = module.Title;
             moduleCaption.Text = module.Caption;
             RepairFinding finding;
@@ -797,7 +940,7 @@ namespace CodexRecoveryCenter
         private async Task RepairSelectedAsync()
         {
             RepairFinding current;
-            if (busy || !findings.TryGetValue(selectedModule.Id, out current) || !current.CanRepair) return;
+            if (busy || selectedModule.Id == overviewModule.Id || !findings.TryGetValue(selectedModule.Id, out current) || !current.CanRepair) return;
             DialogResult answer = MessageBox.Show(
                 "将执行：" + current.RepairLabel + "\n\n影响：" + current.Detail + "\n\n是否继续？",
                 "确认修复", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
@@ -860,6 +1003,45 @@ namespace CodexRecoveryCenter
                 (String.IsNullOrWhiteSpace(message) ? "点击“开始检查”后，这里会显示状态、风险和证据链。" : "检查完成后，这里会显示状态、风险和证据链。") +
                 "\r\n\r\n扫描过程只读，不会自动删除文件或隐藏窗口。";
             repairButton.Text = "等待检查";
+            repairButton.Enabled = false;
+            ThemeManager.Apply(this, SettingsStore.Load().Theme);
+        }
+
+        private void RenderOverview()
+        {
+            moduleTitle.Text = overviewModule.Title;
+            moduleCaption.Text = overviewModule.Caption;
+            if (findings.Count == 0)
+            {
+                moduleStatus.Text = "等待检查 · 点击右上角“开始检查”。";
+                moduleStatus.Tag = "warning";
+                evidenceBox.Text = "这里会先给你一个简单结论：电脑是否正常、哪些地方值得处理、下一步该点哪里。\r\n\r\n" +
+                    "扫描只读，不会自动删除文件、修改网络或隐藏 PowerShell 窗口。\r\n\r\n" +
+                    "常用入口：\r\n  · 存储分析：查看磁盘、缓存和用户资料\r\n  · PowerShell / CMD 弹窗审计：追查真正启动来源\r\n  · 蓝牙音频：复核耳机和音频服务";
+            }
+            else
+            {
+                List<RepairFinding> attention = findings.Values.Where(value => value.Status != RepairFindingStatus.Normal).ToList();
+                moduleStatus.Text = attention.Count == 0 ? "检查完成 · 电脑状态正常。" : "检查完成 · 有 " + attention.Count + " 项值得关注。";
+                moduleStatus.Tag = attention.Count == 0 ? "accent" : "warning";
+                var builder = new StringBuilder();
+                builder.AppendLine("先看结论");
+                builder.AppendLine("  正常模块：" + (findings.Count - attention.Count) + " 个");
+                builder.AppendLine("  建议查看：" + attention.Count + " 个");
+                builder.AppendLine();
+                if (attention.Count == 0)
+                    builder.AppendLine("暂时没有需要处理的项目。你可以定期重新检查。" );
+                else
+                {
+                    builder.AppendLine("建议从这里开始：");
+                    foreach (RepairFinding finding in attention.Take(4))
+                        builder.AppendLine("  · " + finding.Title + "：" + finding.Summary);
+                    builder.AppendLine();
+                    builder.AppendLine("点击左侧具体模块，查看证据、影响和可执行动作。" );
+                }
+                evidenceBox.Text = builder.ToString();
+            }
+            repairButton.Text = "先选择具体模块";
             repairButton.Enabled = false;
             ThemeManager.Apply(this, SettingsStore.Load().Theme);
         }
