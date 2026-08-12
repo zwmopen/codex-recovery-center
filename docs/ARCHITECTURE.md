@@ -12,6 +12,7 @@ WindowsRepairCenterForm / WindowsToolShell
   ├─ PopupAuditRepairModule：Task Scheduler（动作/注册/最近运行时间）、Startup、Run/RunOnce、profile、服务、PowerShell Operational、Security 4688/Sysmon、实时 shell 父进程与来源归因
   ├─ NetworkRepairModule：网卡、DNS、代理、Cloudflare/tunnel 只读诊断与 DNS 刷新
   ├─ StorageAnalysisModule：磁盘容量、缓存候选与用户资料只读分级
+  ├─ PowerSpaceRepairModule：可重建缓存预览、确认清理与清理后复核
   ├─ PerformanceRepairModule：内存、临时文件、开发进程白名单与资源守卫
   └─ StartupRepairModule：启动项、桌面入口、备份与迁移记录
 ```

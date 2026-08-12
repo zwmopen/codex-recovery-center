@@ -880,6 +880,191 @@ namespace CodexRecoveryCenter
         }
     }
 
+    internal sealed class PowerSpaceRepairModule : RepairModuleBase
+    {
+        private const long AttentionBytes = 512L * 1024L * 1024L;
+        private const int MaxFiles = 40000;
+        private const int MaxMilliseconds = 9000;
+
+        public override string Id { get { return "power-space"; } }
+        public override string Title { get { return "强力空间"; } }
+        public override string Caption { get { return "释放可重建缓存，不碰个人资料和开发项目"; } }
+
+        public override RepairFinding Detect()
+        {
+            try
+            {
+                SpacePlan plan = BuildPlan();
+                bool hasCandidates = plan.Files.Count > 0;
+                RepairFinding finding = Finding(
+                    plan.TotalBytes >= AttentionBytes ? RepairFindingStatus.NeedsAttention : RepairFindingStatus.Normal,
+                    hasCandidates ? "发现可安全释放的缓存空间。" : "暂未发现可安全释放的缓存空间。",
+                    hasCandidates,
+                    "清理强力空间",
+                    "仅处理当前用户临时文件、开发工具缓存和浏览器可重建缓存；不会触碰桌面、文档、下载、D:\\AICode 或项目源文件。运行中的文件会自动跳过。",
+                    "会删除可重建缓存，不可撤销；应用下次使用时可能重新下载或生成");
+                finding.Summary = hasCandidates
+                    ? "可释放约 " + FormatBytes(plan.TotalBytes) + "，共 " + plan.Files.Count + " 个文件。"
+                    : "已检查临时文件和常见开发缓存，未发现可处理项目。";
+                foreach (SpaceGroup group in plan.Groups)
+                {
+                    if (group.FileCount > 0)
+                        Add(finding, group.Title + "：" + FormatBytes(group.Bytes) + "，" + group.FileCount + " 个文件；" + group.Root);
+                }
+                Add(finding, "扫描文件=" + plan.ScannedFiles + "；候选=" + plan.Files.Count + "；扫描上限=" + MaxMilliseconds + " ms");
+                if (plan.Truncated) Add(finding, "本次扫描触及保护上限，点击清理后会再次复核剩余空间。");
+                return finding;
+            }
+            catch (Exception ex)
+            {
+                return Finding(RepairFindingStatus.Error, "强力空间分析失败。", false, "", OneLine(ex.Message), "只读");
+            }
+        }
+
+        public override RepairFinding Repair()
+        {
+            SpacePlan plan = BuildPlan();
+            int deleted = 0;
+            int failed = 0;
+            long released = 0;
+            foreach (SpaceFile candidate in plan.Files)
+            {
+                try
+                {
+                    if (!IsWithin(candidate.Path, candidate.Root) || !File.Exists(candidate.Path)) continue;
+                    FileInfo info = new FileInfo(candidate.Path);
+                    if (info.IsReadOnly) { failed++; continue; }
+                    long length = info.Length;
+                    File.Delete(candidate.Path);
+                    deleted++;
+                    released += length;
+                }
+                catch { failed++; }
+            }
+            RepairFinding finding = Detect();
+            Add(finding, "本次清理：" + deleted + " 个文件；释放约 " + FormatBytes(released) + "；跳过/失败 " + failed + " 个。");
+            return finding;
+        }
+
+        private static SpacePlan BuildPlan()
+        {
+            SpacePlan plan = new SpacePlan();
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            string user = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            string local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            var seenRoots = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            AddCandidate(plan, seenRoots, "当前用户临时文件", Path.GetTempPath(), 3, stopwatch);
+            AddCandidate(plan, seenRoots, "npm 缓存", Path.Combine(local, "npm-cache"), 14, stopwatch);
+            AddCandidate(plan, seenRoots, "用户 npm 缓存", Path.Combine(user, ".npm"), 14, stopwatch);
+            AddCandidate(plan, seenRoots, "pnpm store", Path.Combine(local, "pnpm", "store"), 14, stopwatch);
+            AddCandidate(plan, seenRoots, "pip 缓存", Path.Combine(local, "pip", "Cache"), 14, stopwatch);
+            AddCandidate(plan, seenRoots, "NuGet 缓存", Path.Combine(local, "NuGet", "v3-cache"), 14, stopwatch);
+            AddCandidate(plan, seenRoots, "Chrome 可重建缓存", Path.Combine(local, "Google", "Chrome", "User Data", "Default", "Cache"), 7, stopwatch);
+            AddCandidate(plan, seenRoots, "Edge 可重建缓存", Path.Combine(local, "Microsoft", "Edge", "User Data", "Default", "Cache"), 7, stopwatch);
+            AddCandidate(plan, seenRoots, "VS Code 可重建缓存", Path.Combine(local, "Microsoft", "VS Code", "Cache"), 14, stopwatch);
+            return plan;
+        }
+
+        private static void AddCandidate(SpacePlan plan, HashSet<string> seenRoots, string title, string root, int ageDays, Stopwatch stopwatch)
+        {
+            if (String.IsNullOrWhiteSpace(root)) return;
+            string normalized;
+            try { normalized = Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar); }
+            catch { return; }
+            if (!seenRoots.Add(normalized) || !Directory.Exists(normalized)) return;
+            SpaceGroup group = new SpaceGroup(title, normalized);
+            plan.Groups.Add(group);
+            DateTime cutoff = DateTime.UtcNow.AddDays(-ageDays);
+            var pending = new Stack<string>();
+            pending.Push(normalized);
+            while (pending.Count > 0 && !plan.Truncated && stopwatch.ElapsedMilliseconds < MaxMilliseconds)
+            {
+                string current = pending.Pop();
+                try
+                {
+                    foreach (string file in Directory.GetFiles(current))
+                    {
+                        plan.ScannedFiles++;
+                        if (plan.Files.Count >= MaxFiles || stopwatch.ElapsedMilliseconds >= MaxMilliseconds)
+                        {
+                            plan.Truncated = true;
+                            break;
+                        }
+                        try
+                        {
+                            FileInfo info = new FileInfo(file);
+                            if (info.IsReadOnly || info.LastWriteTimeUtc >= cutoff || !IsWithin(file, normalized)) continue;
+                            SpaceFile candidate = new SpaceFile(file, normalized, info.Length);
+                            plan.Files.Add(candidate);
+                            group.FileCount++;
+                            group.Bytes += candidate.Bytes;
+                            plan.TotalBytes += candidate.Bytes;
+                        }
+                        catch { }
+                    }
+                    if (plan.Truncated) break;
+                    foreach (string directory in Directory.GetDirectories(current))
+                    {
+                        if (stopwatch.ElapsedMilliseconds >= MaxMilliseconds) { plan.Truncated = true; break; }
+                        try
+                        {
+                            DirectoryInfo info = new DirectoryInfo(directory);
+                            if ((info.Attributes & FileAttributes.ReparsePoint) != 0) continue;
+                            pending.Push(info.FullName);
+                        }
+                        catch { }
+                    }
+                }
+                catch { }
+            }
+            if (stopwatch.ElapsedMilliseconds >= MaxMilliseconds) plan.Truncated = true;
+        }
+
+        private static bool IsWithin(string path, string root)
+        {
+            try
+            {
+                string file = Path.GetFullPath(path);
+                string directory = Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+                return file.StartsWith(directory, StringComparison.OrdinalIgnoreCase);
+            }
+            catch { return false; }
+        }
+
+        private static string FormatBytes(long bytes)
+        {
+            if (bytes < 1024L * 1024L) return Math.Max(0, bytes / 1024L) + " KB";
+            if (bytes < 1024L * 1024L * 1024L) return (bytes / 1024D / 1024D).ToString("F1") + " MB";
+            return (bytes / 1024D / 1024D / 1024D).ToString("F1") + " GB";
+        }
+
+        private sealed class SpacePlan
+        {
+            public long TotalBytes;
+            public int ScannedFiles;
+            public bool Truncated;
+            public readonly List<SpaceFile> Files = new List<SpaceFile>();
+            public readonly List<SpaceGroup> Groups = new List<SpaceGroup>();
+        }
+
+        private sealed class SpaceFile
+        {
+            public readonly string Path;
+            public readonly string Root;
+            public readonly long Bytes;
+            public SpaceFile(string path, string root, long bytes) { Path = path; Root = root; Bytes = bytes; }
+        }
+
+        private sealed class SpaceGroup
+        {
+            public readonly string Title;
+            public readonly string Root;
+            public int FileCount;
+            public long Bytes;
+            public SpaceGroup(string title, string root) { Title = title; Root = root; }
+        }
+    }
+
     internal sealed class OverviewRepairModule : RepairModuleBase
     {
         public override string Id { get { return "overview"; } }
@@ -1054,6 +1239,7 @@ namespace CodexRecoveryCenter
                 new PopupAuditRepairModule(),
                 new NetworkRepairModule(),
                 new StorageAnalysisModule(),
+                new PowerSpaceRepairModule(),
                 new PerformanceRepairModule(),
                 new StartupRepairModule()
             };

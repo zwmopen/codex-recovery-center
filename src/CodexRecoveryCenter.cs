@@ -81,6 +81,7 @@ namespace CodexRecoveryCenter
                         new PopupAuditRepairModule(),
                         new NetworkRepairModule(),
                         new StorageAnalysisModule(),
+                        new PowerSpaceRepairModule(),
                         new PerformanceRepairModule(),
                         new StartupRepairModule()
                     };
