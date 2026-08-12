@@ -409,6 +409,11 @@ namespace CodexRecoveryCenter
                     Add(finding, "PowerShellOperational=" + OneLine(line, 520));
                     if (IsOperationalEvidence(line)) hits++;
                 }
+                foreach (string line in ReadProcessCreationLog())
+                {
+                    Add(finding, "ProcessCreation=" + OneLine(line, 520));
+                    if (IsOperationalEvidence(line)) hits++;
+                }
                 foreach (string profile in PowerShellProfiles())
                 {
                     Add(finding, SafeFileInfo(profile));
@@ -464,6 +469,36 @@ namespace CodexRecoveryCenter
                 string value = line.Trim();
                 if (value.Length > 0) yield return value;
             }
+        }
+
+        private static IEnumerable<string> ReadProcessCreationLog()
+        {
+            var lines = new List<string>();
+            foreach (string logName in new[] { "Security", "Microsoft-Windows-Sysmon/Operational" })
+            {
+                try
+                {
+                    using (var log = new EventLog(logName))
+                    {
+                        int scanned = 0;
+                        for (int index = log.Entries.Count - 1; index >= 0 && scanned < 250; index--, scanned++)
+                        {
+                            EventLogEntry entry;
+                            try { entry = log.Entries[index]; } catch { continue; }
+                            long eventId = entry.InstanceId & 0xFFFF;
+                            bool processCreation = logName.Equals("Security", StringComparison.OrdinalIgnoreCase)
+                                ? eventId == 4688
+                                : eventId == 1;
+                            if (!processCreation) continue;
+                            string data = String.Join(" | ", entry.ReplacementStrings ?? new string[0]);
+                            lines.Add(logName + " event=" + eventId + "; time=" + entry.TimeGenerated.ToString("O") +
+                                "; data=" + OneLine(data, 460));
+                        }
+                    }
+                }
+                catch { }
+            }
+            return lines;
         }
 
         private static IEnumerable<string> PowerShellProfiles()
