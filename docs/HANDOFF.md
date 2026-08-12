@@ -1,16 +1,17 @@
 # 开发交接
 
 最后核对：2026-08-12
-当前版本：2.1.0
+当前版本：2.2.0
 
-## 2.1.0 当前交付状态
+## 2.2.0 当前交付状态
 
 - 产品已升级为“Windows 修复中心”，入口为 `src\WindowsRepairCenter.cs` 的统一模块化 WinForms 外壳。
-- P0 模块已接入：Codex、蓝牙音频、鼠标语音输入、PowerShell/CMD 弹窗审计、网络诊断、电脑加速与空间、启动项与桌面入口。
+- P0 模块已接入：电脑概览、Codex、蓝牙音频、鼠标语音输入、PowerShell/CMD 弹窗审计、网络诊断、存储分析、电脑加速与空间、启动项与桌面入口。
 - 2026-08-12 增加“电脑概览”首屏和只读“存储分析”模块；存储候选按可重建缓存/用户资料分级，默认不提供删除动作。
+- 2026-08-12 完成发布前体检：正常状态不再显示修复按钮；弹窗审计补齐 PowerShell Operational、RunOnce 和系统 profile 证据；设置、关于、记录和更新检查入口可用；存储扫描跳过 reparse point。
 - 诊断默认只读；修复动作由模块声明，UI 在执行前显示影响并在执行后重新检测。
-- 真实构建通过：`releases\Windows-Repair-Center.exe`，版本 `2.1.0`。
-- `--repair-center-self-test` 已在当前电脑通过，读取八个模块状态并返回退出码 0。
+- 真实构建通过：`releases\Windows-Repair-Center.exe`，版本 `2.2.0`。
+- `--repair-center-self-test` 已在当前电脑通过，读取八个模块状态并返回退出码 0；每次发布前同时复核窗口响应、事件日志和桌面快捷方式。
 - 桌面已创建 `C:\Users\z\Desktop\Windows 修复中心.lnk`；旧的三个入口已备份到 `%LOCALAPPDATA%\WindowsRepairCenter\backups\desktop-shortcuts\20260811-131305` 后移出桌面。
 - 构建脚本 `scripts\Build.ps1 -InstallDesktopShortcut` 会在源码构建成功后更新入口；构建失败不会覆盖最后一个可用 EXE。
 - 2026-08-12 已修复：PowerShell 中文输出编码、首次扫描状态矛盾、串行扫描造成的“像卡死”、单模块超时隔离，以及构建环境缺少 `WINDIR` 时快捷方式更新失败。全量检查现为并行执行，单模块 45 秒超时后继续；原生 Windows 命令仍使用系统编码读取。
@@ -23,7 +24,7 @@
 - 即时恢复已只清理确认孤儿的旧 Vite 与两个异常 conhost；保守降载后可用内存约从 1.4–1.6 GB回升到约 3.0 GB，后续复测换页读取从约 2980/s降到 0/s。
 - 资源守卫硬边界：Node/PowerShell/pwsh 私有提交达到 6 GB即停止；Vite 等普通高句柄进程必须同时满足父进程不存在、存活至少 4 小时、句柄不少于 3000 才回收；整机高压只降优先级和回收工作集，不自动关闭 Codex/ChatGPT。
 
-- 独立 WinForms EXE 已构建，桌面入口为 `Codex 恢复中心.lnk`。
+- 独立 WinForms EXE 已构建，桌面入口为 `Windows 修复中心.lnk`；旧 Codex 入口仅保留在备份目录，不作为当前入口。
 - 2026-07-26 18:47 的真实 `0x3CFC` 故障已完成“注册修复 → 微软商店重新暂存 → 状态恢复 → GPU 安全模式启动”闭环。
 - 1.2.0 已将 `Modified, NeedsRemediation` 的注册后等待由 45 秒缩短为 12 秒，并显示商店阶段实时用时。
 - 1.3.0 已按用户真实项目视觉重做：默认冷灰蓝拟态悬浮，可切换克制玻璃；设置、关于和日志均使用同一视觉系统。
@@ -67,13 +68,13 @@
 - 主界面：`src\MainForm.cs`
 - 主题、设置与更新：`src\ProductExperience.cs`
 - 构建：`scripts\Build.ps1`
-- 发布：`releases\Codex-Recovery-Center.exe`
+- 发布：`releases\Windows-Repair-Center.exe`
 - 更新清单：`releases\manifest.json`
-- 桌面：`C:\Users\z\Desktop\Codex 恢复中心.lnk`
-- 本地数据：`C:\Users\z\AppData\Local\CodexRecoveryCenter`
+- 桌面：`C:\Users\z\Desktop\Windows 修复中心.lnk`
+- 本地数据：`C:\Users\z\AppData\Local\WindowsRepairCenter`（资源守卫历史兼容数据仍可能位于旧目录）
 - 资源守卫任务：Windows 计划任务 `CodexRecoveryCenter-ResourceGuard`
 - 远程仓库：`https://github.com/zwmopen/codex-recovery-center`
-- 最新发布：`https://github.com/zwmopen/codex-recovery-center/releases/tag/v1.5.0`
+- 最新发布：本地验证以 `releases\manifest.json` 和 `releases\Windows-Repair-Center.exe` 为准；远程 Release 需单独发布后再更新链接。
 
 ## 恢复算法
 

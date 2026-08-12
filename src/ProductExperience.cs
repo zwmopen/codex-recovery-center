@@ -15,7 +15,7 @@ namespace CodexRecoveryCenter
 {
     internal static class ProductInfo
     {
-        public const string Version = "2.1.0";
+        public const string Version = "2.2.0";
         public const string RepositoryUrl = "https://github.com/zwmopen/codex-recovery-center";
         public const string ReleasesUrl = RepositoryUrl + "/releases";
         public const string UpdateManifestUrl =
@@ -404,12 +404,14 @@ namespace CodexRecoveryCenter
                     if (!name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
                         continue;
                     info.DownloadUrl = ProductInfo.ReleasesUrl + "/download/v" + info.Version +
-                        "/Codex-Recovery-Center-v" + info.Version + ".exe";
+                        "/" + name;
                     object sha256;
                     if (asset.TryGetValue("sha256", out sha256))
                         info.Digest = "sha256:" + Convert.ToString(sha256);
                     object size;
-                    if (asset.TryGetValue("size", out size))
+                    if (!asset.TryGetValue("size", out size))
+                        asset.TryGetValue("bytes", out size);
+                    if (size != null)
                         info.Size = Convert.ToInt64(size);
                     break;
                 }
@@ -427,10 +429,10 @@ namespace CodexRecoveryCenter
 
             string root = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "CodexRecoveryCenter", "updates");
+                "WindowsRepairCenter", "updates");
             Directory.CreateDirectory(root);
             string target = Path.Combine(root,
-                "Codex-Recovery-Center-v" + info.Version + ".exe");
+                "Windows-Repair-Center-v" + info.Version + ".exe");
 
             using (var client = NewClient())
                 client.DownloadFile(info.DownloadUrl, target);
@@ -481,7 +483,7 @@ namespace CodexRecoveryCenter
         {
             var client = new WebClient();
             client.Headers[HttpRequestHeader.UserAgent] =
-                "Codex-Recovery-Center/" + ProductInfo.Version;
+                "Windows-Repair-Center/" + ProductInfo.Version;
             client.Headers[HttpRequestHeader.Accept] = "application/vnd.github+json";
             return client;
         }
@@ -510,7 +512,7 @@ namespace CodexRecoveryCenter
             applySettings = apply;
             checkUpdates = check;
 
-            Text = "设置 · Codex 恢复中心";
+            Text = "设置 · Windows 修复中心";
             ClientSize = new Size(600, 555);
             MinimumSize = new Size(560, 535);
             StartPosition = FormStartPosition.CenterParent;
@@ -653,18 +655,18 @@ namespace CodexRecoveryCenter
     {
         public AboutForm(VisualTheme theme)
         {
-            Text = "关于 · Codex 恢复中心";
+            Text = "关于 · Windows 修复中心";
             ClientSize = new Size(620, 535);
             MinimumSize = new Size(580, 500);
             StartPosition = FormStartPosition.CenterParent;
             Font = new Font("Microsoft YaHei UI", 10F);
             AutoScaleMode = AutoScaleMode.Dpi;
 
-            var title = NewLabel("Codex 恢复中心", 32, 26, 20F, FontStyle.Bold, null);
-            var version = NewLabel("v" + ProductInfo.Version + " · Windows 独立恢复工具",
+            var title = NewLabel("Windows 修复中心", 32, 26, 20F, FontStyle.Bold, null);
+            var version = NewLabel("v" + ProductInfo.Version + " · Windows 本机诊断与修复工具",
                 34, 68, 9.5F, FontStyle.Bold, "accent");
             var intro = NewLabel(
-                "为“应用有问题、无法启动、只能反复去微软商店更新”而开发。即使 Codex 已经打不开，恢复中心仍可独立运行。",
+                "面向 Windows 本机问题：启动、蓝牙、弹窗来源、网络、存储和资源压力。Codex 只是其中一个模块。",
                 34, 105, 540, 46, 9.5F, FontStyle.Regular, "muted");
 
             var idea = new SoftPanel

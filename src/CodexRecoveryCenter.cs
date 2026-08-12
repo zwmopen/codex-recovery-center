@@ -278,7 +278,7 @@ namespace CodexRecoveryCenter
             {
                 string path = Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                    "CodexRecoveryCenter", "logs");
+                    "WindowsRepairCenter", "logs");
                 Directory.CreateDirectory(path);
                 return path;
             }
@@ -1034,7 +1034,7 @@ namespace CodexRecoveryCenter
         public LegacyMainForm()
         {
             appSettings = SettingsStore.Load();
-            Text = "Codex 恢复中心";
+            Text = "Windows 修复中心 · 兼容视图";
             ClientSize = new Size(820, 610);
             MinimumSize = new Size(760, 570);
             StartPosition = FormStartPosition.CenterScreen;

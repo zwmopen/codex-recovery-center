@@ -259,7 +259,7 @@ namespace CodexRecoveryCenter
                 bool attention = problems > 0 || !servicesOk;
                 RepairFinding finding = Finding(attention ? RepairFindingStatus.NeedsAttention : RepairFindingStatus.Normal,
                     attention ? "蓝牙或音频服务需要复核。" : "蓝牙音频服务与端点状态正常。",
-                    true, "刷新蓝牙音频服务", "会重启 AudioEndpointBuilder 和 Audiosrv，播放会短暂中断；不会卸载驱动。", "低风险，可重试");
+                    attention, "刷新蓝牙音频服务", "会重启 AudioEndpointBuilder 和 Audiosrv，播放会短暂中断；不会卸载驱动。", "低风险，可重试");
                 foreach (string line in output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
                     Add(finding, line);
                 return finding;
@@ -318,7 +318,7 @@ namespace CodexRecoveryCenter
                 RepairFinding finding = Finding(
                     attention ? RepairFindingStatus.NeedsAttention : RepairFindingStatus.Normal,
                     taskExists ? "鼠标语音 watchdog 已注册，正在检查单实例与心跳。" : "未找到鼠标语音 watchdog 任务。",
-                    taskExists, "后台启动语音 watchdog", "只运行已注册的隐藏任务，不创建新任务；修复后复核任务状态和桥接进程。", "低风险，不隐藏未知窗口");
+                    attention && taskExists, "后台启动语音 watchdog", "只运行已注册的隐藏任务，不创建新任务；修复后复核任务状态和桥接进程。", "低风险，不隐藏未知窗口");
                 Add(finding, "taskExists=" + taskExists);
                 Add(finding, "heartbeatFile=" + heartbeat);
                 Add(finding, "task=" + OneLine(task.Output, 600));
@@ -404,6 +404,11 @@ namespace CodexRecoveryCenter
                     Add(finding, "Task=" + OneLine(line));
                     hits++;
                 }
+                foreach (string line in ReadPowerShellOperationalLog())
+                {
+                    Add(finding, "PowerShellOperational=" + OneLine(line, 520));
+                    if (IsOperationalEvidence(line)) hits++;
+                }
                 foreach (string profile in PowerShellProfiles())
                 {
                     Add(finding, SafeFileInfo(profile));
@@ -413,8 +418,8 @@ namespace CodexRecoveryCenter
                 Add(finding, "interactive-shell-processes=" + processCount);
                 if (hits > 0)
                 {
-                    finding.Status = RepairFindingStatus.NeedsAttention;
-                    finding.Summary = "发现需要人工确认的启动源或脚本证据。";
+                    finding.Status = RepairFindingStatus.NeedsConfirmation;
+                    finding.Summary = "发现需要人工确认的启动源、脚本或事件证据。";
                     finding.Detail = "请先查看证据链；只有确认无用的遗留项才允许停用，当前版本不自动删除。";
                 }
                 return finding;
@@ -447,16 +452,39 @@ namespace CodexRecoveryCenter
             return result.Output ?? "";
         }
 
+        private static IEnumerable<string> ReadPowerShellOperationalLog()
+        {
+            CommandResult result = RecoveryEngine.RunProcess(
+                "wevtutil.exe",
+                "qe Microsoft-Windows-PowerShell/Operational /q:\"*[System[(EventID=400 or EventID=4103 or EventID=4104)]]\" /c:8 /rd:true /f:text",
+                15000);
+            if (result.TimedOut || result.ExitCode != 0) yield break;
+            foreach (string line in (result.Output ?? "").Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                string value = line.Trim();
+                if (value.Length > 0) yield return value;
+            }
+        }
+
         private static IEnumerable<string> PowerShellProfiles()
         {
             yield return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "WindowsPowerShell", "Microsoft.PowerShell_profile.ps1");
             yield return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "PowerShell", "Microsoft.PowerShell_profile.ps1");
+            yield return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "System32", "WindowsPowerShell", "v1.0", "Profile.ps1");
+            yield return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "System32", "WindowsPowerShell", "v1.0", "Microsoft.PowerShell_profile.ps1");
         }
 
         private static bool IsInteresting(string line)
         {
             string value = line ?? "";
             string[] needles = { "powershell", "pwsh", "cmd.exe", ".ps1", ".vbs", ".bat", ".cmd", "D:\\AICode", "cloudflare", "tunnel", "updater", "同步", "滴答", "工作台", "团建" };
+            return needles.Any(value.IndexOfIgnoreCase);
+        }
+
+        private static bool IsOperationalEvidence(string line)
+        {
+            string value = line ?? "";
+            string[] needles = { "powershell.exe", "pwsh.exe", "cmd.exe", ".ps1", ".vbs", ".bat", ".cmd", "D:\\AICode", "Start-Process", "schtasks", "-File", "-Command" };
             return needles.Any(value.IndexOfIgnoreCase);
         }
     }
@@ -474,7 +502,7 @@ namespace CodexRecoveryCenter
                 NetworkInterface[] interfaces = NetworkInterface.GetAllNetworkInterfaces();
                 NetworkInterface[] active = interfaces.Where(value => value.OperationalStatus == OperationalStatus.Up && value.NetworkInterfaceType != NetworkInterfaceType.Loopback).ToArray();
                 var finding = Finding(active.Length == 0 ? RepairFindingStatus.NeedsAttention : RepairFindingStatus.Normal,
-                    active.Length == 0 ? "当前没有可用的活动网卡。" : "网络接口与本机代理状态可用。", true,
+                    active.Length == 0 ? "当前没有可用的活动网卡。" : "网络接口与本机代理状态可用。", active.Length == 0,
                     "刷新 DNS 并验证", "只执行 ipconfig /flushdns，再重新检查网络；不会修改 DNS、代理、Cloudflare 或隧道配置。", "低风险");
                 Add(finding, "active-adapters=" + active.Length + "; total=" + interfaces.Length);
                 foreach (NetworkInterface adapter in active.Take(6))
@@ -581,7 +609,8 @@ namespace CodexRecoveryCenter
             int entries = 0;
             Stopwatch stopwatch = Stopwatch.StartNew();
             var pending = new Stack<DirectoryNode>();
-            pending.Push(new DirectoryNode(path, 0));
+            string root = Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            pending.Push(new DirectoryNode(root, 0));
             while (pending.Count > 0 && entries < maxEntries && stopwatch.ElapsedMilliseconds < maxMilliseconds)
             {
                 DirectoryNode node = pending.Pop();
@@ -590,12 +619,16 @@ namespace CodexRecoveryCenter
                     foreach (FileInfo file in new DirectoryInfo(node.Path).GetFiles())
                     {
                         if (++entries > maxEntries || stopwatch.ElapsedMilliseconds >= maxMilliseconds) break;
+                        if ((file.Attributes & FileAttributes.ReparsePoint) != 0) continue;
                         try { total += file.Length; } catch { }
                     }
                     if (node.Depth >= maxDepth) continue;
                     foreach (DirectoryInfo directory in new DirectoryInfo(node.Path).GetDirectories())
                     {
                         if (entries >= maxEntries || stopwatch.ElapsedMilliseconds >= maxMilliseconds) break;
+                        if ((directory.Attributes & FileAttributes.ReparsePoint) != 0) continue;
+                        string full = directory.FullName.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                        if (full.Equals(root, StringComparison.OrdinalIgnoreCase)) continue;
                         pending.Push(new DirectoryNode(directory.FullName, node.Depth + 1));
                     }
                 }
@@ -651,9 +684,12 @@ namespace CodexRecoveryCenter
                 MemoryState memory = RecoveryEngine.GetMemoryState();
                 TempStats temp = InspectTemp();
                 List<ProcessGroup> groups = RecoveryEngine.GetTopCommitGroups(6);
-                RepairFinding finding = Finding(memory.IsHighPressure || temp.CandidateBytes >= 512L * 1024L * 1024L ? RepairFindingStatus.NeedsAttention : RepairFindingStatus.Normal,
+                bool cleanupSuggested = memory.IsHighPressure || temp.CandidateBytes >= 512L * 1024L * 1024L;
+                string cleanupDetail = "只清理当前用户临时目录中超过 3 天且可删除的文件，共 " + temp.CandidateCount + " 个，约 " +
+                    (temp.CandidateBytes / 1024 / 1024) + " MB；不会关闭开发进程或清空用户数据。";
+                RepairFinding finding = Finding(cleanupSuggested ? RepairFindingStatus.NeedsAttention : RepairFindingStatus.Normal,
                     memory.IsHighPressure ? "当前内存/提交压力偏高。" : "资源压力在可接受范围内。", temp.CandidateBytes > 0,
-                    "清理可重建临时文件", "只清理当前用户临时目录中超过 3 天且可删除的文件；不会关闭开发进程或清空用户数据。", "低风险，可恢复的缓存除外");
+                    "清理可重建临时文件", cleanupDetail, "低风险，可恢复的缓存除外");
                 Add(finding, "memory=" + memory.AvailablePhysicalGb.ToString("F2") + " GB physical free; " + memory.AvailableVirtualGb.ToString("F2") + " GB virtual free; pressure=" + memory.CommitPressurePercent.ToString("F1") + "%");
                 Add(finding, "tempCandidates=" + temp.CandidateCount + "; bytes=" + (temp.CandidateBytes / 1024 / 1024) + " MB; path=" + temp.Root);
                 foreach (ProcessGroup group in groups)
@@ -737,13 +773,16 @@ namespace CodexRecoveryCenter
                 foreach (string file in Directory.GetFiles(startup)) { Add(finding, "Startup=" + file); count++; if (IsInteresting(file)) suspicious++; }
             foreach (RegistryHive hive in new[] { RegistryHive.CurrentUser, RegistryHive.LocalMachine })
             using (RegistryKey baseKey = RegistryKey.OpenBaseKey(hive, RegistryView.Registry64))
-            using (RegistryKey key = baseKey.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run"))
             {
-                if (key == null) continue;
-                foreach (string name in key.GetValueNames())
+                foreach (string path in new[] { @"Software\Microsoft\Windows\CurrentVersion\Run", @"Software\Microsoft\Windows\CurrentVersion\RunOnce" })
+                using (RegistryKey key = baseKey.OpenSubKey(path))
                 {
-                    string line = hive + "\\Run\\" + name + "=" + OneLine(Convert.ToString(key.GetValue(name)));
-                    Add(finding, line); count++; if (IsInteresting(line)) suspicious++;
+                    if (key == null) continue;
+                    foreach (string name in key.GetValueNames())
+                    {
+                        string line = hive + "\\" + path + "\\" + name + "=" + OneLine(Convert.ToString(key.GetValue(name)));
+                        Add(finding, line); count++; if (IsInteresting(line)) suspicious++;
+                    }
                 }
             }
             if (suspicious > 0) { finding.Status = RepairFindingStatus.NeedsAttention; finding.Summary = "发现 " + suspicious + " 个需要确认来源的开机入口（共 " + count + " 个）。"; }
@@ -772,11 +811,16 @@ namespace CodexRecoveryCenter
         private readonly Label moduleStatus;
         private readonly TextBox evidenceBox;
         private readonly SoftButton scanButton;
+        private readonly SoftButton settingsButton;
+        private readonly SoftButton aboutButton;
         private readonly SoftButton repairButton;
         private readonly SoftButton reportButton;
+        private readonly SoftButton recordButton;
         private readonly ProgressBar progress;
         private readonly string sessionLog;
+        private readonly Dictionary<string, SoftButton> moduleButtons = new Dictionary<string, SoftButton>();
         private IRepairModule selectedModule;
+        private AppSettings appSettings;
         private bool busy;
 
         public WindowsRepairCenterForm()
@@ -795,6 +839,7 @@ namespace CodexRecoveryCenter
             };
             selectedModule = overviewModule;
             sessionLog = Path.Combine(RepairCenterPaths.Logs, "session-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".log");
+            appSettings = SettingsStore.Load();
 
             Text = "Windows 修复中心";
             // Keep the first view readable on a 100% 1366px display and leave
@@ -816,10 +861,18 @@ namespace CodexRecoveryCenter
             var header = new Panel { Dock = DockStyle.Fill, BackColor = Color.Transparent };
             Label title = MakeLabel("Windows 修复中心", 0, 0, 17F, FontStyle.Bold, "title");
             Label subtitle = MakeLabel("本机诊断 · 安全修复 · 可验证回滚", 2, 31, 8.5F, FontStyle.Regular, "muted");
+            settingsButton = MakeButton("设置", 0, 4, 72, 40, ButtonVisualRole.Ghost);
+            aboutButton = MakeButton("关于", 0, 4, 72, 40, ButtonVisualRole.Ghost);
             scanButton = MakeButton("开始检查", 0, 4, 122, 40, ButtonVisualRole.Primary);
             scanButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            header.Controls.AddRange(new Control[] { title, subtitle, scanButton });
-            header.Layout += (s, e) => scanButton.Left = header.ClientSize.Width - scanButton.Width;
+            settingsButton.Anchor = aboutButton.Anchor = scanButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            header.Controls.AddRange(new Control[] { title, subtitle, settingsButton, aboutButton, scanButton });
+            header.Layout += (s, e) =>
+            {
+                scanButton.Left = header.ClientSize.Width - scanButton.Width;
+                aboutButton.Left = scanButton.Left - aboutButton.Width - 8;
+                settingsButton.Left = aboutButton.Left - settingsButton.Width - 6;
+            };
             root.Controls.Add(header, 0, 0);
 
             var body = new TableLayoutPanel { Dock = DockStyle.Fill, BackColor = Color.Transparent, ColumnCount = 2, RowCount = 1, Margin = new Padding(0, 8, 0, 8) };
@@ -843,7 +896,8 @@ namespace CodexRecoveryCenter
             evidenceBox = new TextBox { Location = new Point(0, 126), Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, BorderStyle = BorderStyle.None, BackColor = Color.FromArgb(226, 235, 241), Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right, Font = new Font("Consolas", 9F), TabStop = false };
             repairButton = MakeButton("执行建议修复", 0, 0, 150, 40, ButtonVisualRole.Primary); repairButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             reportButton = MakeButton("保存诊断报告", 162, 0, 150, 40, ButtonVisualRole.Secondary); reportButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
-            content.Controls.AddRange(new Control[] { moduleTitle, moduleCaption, moduleStatus, progress, evidenceBox, repairButton, reportButton });
+            recordButton = MakeButton("查看处理记录", 324, 0, 150, 40, ButtonVisualRole.Ghost); recordButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
+            content.Controls.AddRange(new Control[] { moduleTitle, moduleCaption, moduleStatus, progress, evidenceBox, repairButton, reportButton, recordButton });
             content.Layout += (s, e) =>
             {
                 progress.Width = Math.Max(120, content.ClientSize.Width);
@@ -851,6 +905,7 @@ namespace CodexRecoveryCenter
                 evidenceBox.Height = Math.Max(100, content.ClientSize.Height - 180);
                 repairButton.Top = content.ClientSize.Height - repairButton.Height;
                 reportButton.Top = repairButton.Top;
+                recordButton.Top = repairButton.Top;
             };
             body.Controls.Add(content, 1, 0);
 
@@ -860,21 +915,62 @@ namespace CodexRecoveryCenter
 
             BuildModuleButtons();
             scanButton.Click += async (s, e) => await ScanAllAsync();
+            settingsButton.Click += (s, e) => OpenSettings();
+            aboutButton.Click += (s, e) =>
+            {
+                using (var about = new AboutForm(appSettings.Theme)) about.ShowDialog(this);
+            };
             repairButton.Click += async (s, e) => await RepairSelectedAsync();
             reportButton.Click += (s, e) => SaveReport();
+            recordButton.Click += (s, e) => ShowSessionLog();
             Load += async (s, e) => await ScanAllAsync();
-            ThemeManager.Apply(this, SettingsStore.Load().Theme);
+            Shown += (s, e) => BeginInvoke((Action)(() => CenterToScreen()));
+            ThemeManager.Apply(this, appSettings.Theme);
             SelectModule(selectedModule);
+        }
+
+        private void OpenSettings()
+        {
+            using (var settings = new SettingsForm(appSettings, ApplySettings, CheckUpdatesAsync))
+                settings.ShowDialog(this);
+        }
+
+        private async Task CheckUpdatesAsync()
+        {
+            try
+            {
+                UpdateInfo latest = await Task.Run(() => UpdateService.CheckLatest());
+                if (!latest.IsNewerThan(ProductInfo.Version))
+                {
+                    MessageBox.Show(this, "当前已经是最新版 v" + ProductInfo.Version + "。", "检查更新", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+                DialogResult open = MessageBox.Show(this,
+                    "发现新版 v" + latest.Version + "。\n\n是否打开官方发布页？", "发现新版本", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+                if (open == DialogResult.Yes) Process.Start(latest.ReleaseUrl);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, "暂时无法完成更新检查。\n\n" + ex.Message, "检查更新失败", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
+
+        private void ApplySettings(AppSettings updated)
+        {
+            appSettings = updated;
+            ThemeManager.Apply(this, appSettings.Theme);
         }
 
         private void BuildModuleButtons()
         {
             moduleList.Controls.Clear();
+            moduleButtons.Clear();
             SoftButton overviewButton = MakeButton(overviewModule.Title, 0, 0, 262, 42, ButtonVisualRole.Ghost);
             overviewButton.TextAlign = ContentAlignment.MiddleLeft;
             overviewButton.Margin = new Padding(0, 0, 0, 7);
             overviewButton.Click += (s, e) => SelectModule(overviewModule);
             moduleList.Controls.Add(overviewButton);
+            moduleButtons[overviewModule.Id] = overviewButton;
             foreach (IRepairModule module in modules)
             {
                 SoftButton button = MakeButton(module.Title, 0, 0, 262, 42, ButtonVisualRole.Ghost);
@@ -883,12 +979,15 @@ namespace CodexRecoveryCenter
                 button.Tag = module.Id;
                 button.Click += (s, e) => SelectModule(module);
                 moduleList.Controls.Add(button);
+                moduleButtons[module.Id] = button;
             }
         }
 
         private void SelectModule(IRepairModule module)
         {
             selectedModule = module;
+            foreach (KeyValuePair<string, SoftButton> entry in moduleButtons)
+                entry.Value.VisualRole = entry.Key == module.Id ? ButtonVisualRole.Secondary : ButtonVisualRole.Ghost;
             if (module.Id == overviewModule.Id)
             {
                 RenderOverview();
@@ -968,10 +1067,12 @@ namespace CodexRecoveryCenter
         private void UpdateHealth(List<RepairFinding> results)
         {
             int normal = results.Count(value => value.Status == RepairFindingStatus.Normal);
-            int issue = results.Count - normal;
-            healthLabel.Text = issue == 0 ? "电脑状态正常" : "发现 " + issue + " 项需要关注";
-            healthDetail.Text = normal + " 个模块正常；" + issue + " 个模块有建议或需确认项。";
-            healthLabel.Tag = issue == 0 ? "accent" : "warning";
+            int confirmation = results.Count(value => value.Status == RepairFindingStatus.NeedsConfirmation);
+            int issue = results.Count(value => value.Status == RepairFindingStatus.NeedsAttention || value.Status == RepairFindingStatus.Error);
+            int review = issue + confirmation;
+            healthLabel.Text = review == 0 ? "电脑状态正常" : "发现 " + review + " 项需要查看";
+            healthDetail.Text = normal + " 个模块正常；" + issue + " 个建议处理；" + confirmation + " 个需要人工确认。";
+            healthLabel.Tag = issue == 0 && confirmation == 0 ? "accent" : "warning";
             ThemeManager.Apply(this, SettingsStore.Load().Theme);
         }
 
@@ -1102,6 +1203,15 @@ namespace CodexRecoveryCenter
             File.WriteAllText(path, builder.ToString(), Encoding.UTF8);
             WriteLog("已保存诊断报告：" + path);
             MessageBox.Show("报告已保存：\n" + path, "诊断报告", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+
+        private void ShowSessionLog()
+        {
+            string content = "";
+            try { content = File.Exists(sessionLog) ? File.ReadAllText(sessionLog, Encoding.UTF8) : "本次还没有处理记录。"; }
+            catch (Exception ex) { content = "读取记录失败：" + ex.Message; }
+            using (var log = new LogForm(appSettings.Theme, content, sessionLog))
+                log.ShowDialog(this);
         }
 
         private void WriteLog(string text)

@@ -21,7 +21,7 @@ WindowsRepairCenterForm / WindowsToolShell
 ```text
 WinForms GUI
   ├─ Single-instance mutex：重复启动只唤醒已有窗口
-  ├─ WindowsRepairCenterForm：健康总览、模块导航、证据与安全修复入口
+  ├─ WindowsRepairCenterForm：健康总览、模块导航、证据、设置、记录与安全修复入口
   ├─ MainForm：旧版 Codex 专用界面，保留作回退参考
   ├─ SettingsForm：双主题与更新偏好
   ├─ AboutForm / LogForm：产品说明与诊断记录
@@ -47,7 +47,7 @@ WinForms GUI
 ## 关键文件
 
 - 程序入口与恢复引擎：`src\CodexRecoveryCenter.cs`
-- 统一修复外壳与模块：`src\WindowsRepairCenter.cs`
+- 统一修复外壳与模块：`src\WindowsRepairCenter.cs`（概览、Codex、蓝牙、鼠标语音、弹窗审计、网络、存储、资源和启动项）
 - 资源守卫与计划任务：`src\ResourceGuard.cs`
 - 主界面与日志窗口：`src\MainForm.cs`
 - 设置、主题、关于与更新：`src\ProductExperience.cs`

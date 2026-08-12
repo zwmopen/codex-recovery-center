@@ -1,6 +1,6 @@
 # Windows 修复中心
 
-当前版本：2.1.0
+当前版本：2.2.0
 
 这是一个只在本机运行的 Windows 诊断与修复工作台。Codex 是其中一个模块，同时覆盖蓝牙音频、鼠标语音输入、PowerShell/CMD 弹窗来源、网络诊断、启动项、临时文件和开发环境资源治理。所有模块都遵循“先诊断、低风险修复、修复后验证；高风险动作单独确认”的规则。
 
@@ -46,7 +46,7 @@
 
 ## 安装与更新
 
-普通用户从 [GitHub Releases](https://github.com/zwmopen/codex-recovery-center/releases/latest) 下载最新 `Codex-Recovery-Center-v*.exe`，双击即可运行。
+普通用户从 [GitHub Releases](https://github.com/zwmopen/codex-recovery-center/releases/latest) 下载最新 `Windows-Repair-Center-v*.exe`，双击即可运行。
 
 程序会按默认规则发现新版，设置页只保留“检查版本”。新版从公开 Release 下载，必须通过版本清单中的 SHA-256 校验；替换程序前仍需用户确认。
 
@@ -83,6 +83,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\Build.ps1 -InstallDe
 | 1.4.1 | 补齐 Windows 文件版本信息，并让构建自动生成版本化成品与更新清单 |
 | 1.5.0 | 识别 GPU / 会话渲染崩溃，指出触发会话并避免误走商店重装 |
 | 1.6.0 | 新增资源守卫：拦截 Node/PowerShell 失控内存、回收高风险孤儿开发服务，并在整机高压时保守降载 |
+| 2.0.0 | 升级为 Windows 修复中心，统一 Codex、蓝牙、弹窗、网络、资源和启动项模块 |
+| 2.0.1 | 修复编码、扫描卡顿、模块超时和首页状态不一致 |
+| 2.1.0 | 增加电脑概览、只读存储分析和用户入口 |
+| 2.2.0 | 完成发布前体检：修复按钮按真实状态开放、补齐 PowerShell Operational/RunOnce 证据、修正更新清单、选中态和清理影响说明 |
 
 完整变更见 [CHANGELOG.md](CHANGELOG.md)。
 
