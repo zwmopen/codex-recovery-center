@@ -794,9 +794,12 @@ namespace CodexRecoveryCenter
                     Add(finding, (candidate.Green ? "绿色·可重建缓存" : "黄色·用户资料") + "：" + candidate.Title + "；" + candidate.Path + "；约 " + FormatBytes(size));
                 }
 
+                AddTopLevelBreakdown(finding, @"D:\AICode", "AICode 顶层占用", 8, 5500);
+                AddTopLevelBreakdown(finding, @"D:\", "D 盘根目录占用", 8, 3500);
+
                 finding.Summary = measured == 0
                     ? "已读取磁盘容量，未发现可测量的候选目录。"
-                    : "已分析 " + measured + " 个候选目录；可重建缓存约 " + FormatBytes(greenBytes) + "，用户资料约 " + FormatBytes(reviewBytes) + "。";
+                    : "已分析 " + measured + " 个候选目录，并完成 D 盘/AICode 顶层占用排行；可重建缓存约 " + FormatBytes(greenBytes) + "，用户资料约 " + FormatBytes(reviewBytes) + "。";
                 if (greenBytes >= 512L * 1024L * 1024L)
                 {
                     finding.Status = RepairFindingStatus.NeedsAttention;
@@ -808,6 +811,34 @@ namespace CodexRecoveryCenter
             {
                 return Finding(RepairFindingStatus.Error, "存储分析失败。", false, "", OneLine(ex.Message), "只读");
             }
+        }
+
+        private static void AddTopLevelBreakdown(RepairFinding finding, string root, string label, int take, int budgetMilliseconds)
+        {
+            if (!Directory.Exists(root)) return;
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            var summaries = new List<DirectorySummary>();
+            try
+            {
+                foreach (DirectoryInfo directory in new DirectoryInfo(root).GetDirectories())
+                {
+                    if (stopwatch.ElapsedMilliseconds >= budgetMilliseconds) break;
+                    try
+                    {
+                        if ((directory.Attributes & FileAttributes.ReparsePoint) != 0) continue;
+                        long bytes = MeasureDirectory(directory.FullName, 3, 3500, 650);
+                        if (bytes > 0) summaries.Add(new DirectorySummary(directory.Name, directory.FullName, bytes));
+                    }
+                    catch { }
+                }
+            }
+            catch { return; }
+
+            foreach (DirectorySummary summary in summaries.OrderByDescending(value => value.Bytes).Take(take))
+                Add(finding, label + "：" + summary.Name + "；约 " + FormatBytes(summary.Bytes) + "；" + summary.Path);
+            if (summaries.Count > take)
+                Add(finding, label + "：其余 " + (summaries.Count - take) + " 个目录未展开，仅保留排行前 " + take + " 项。");
+            Add(finding, label + "：扫描耗时约 " + stopwatch.ElapsedMilliseconds + " ms；只读排行，不代表可直接删除。");
         }
 
         private static IEnumerable<StorageCandidate> Candidates()
@@ -877,6 +908,14 @@ namespace CodexRecoveryCenter
             public readonly string Path;
             public readonly int Depth;
             public DirectoryNode(string path, int depth) { Path = path; Depth = depth; }
+        }
+
+        private sealed class DirectorySummary
+        {
+            public readonly string Name;
+            public readonly string Path;
+            public readonly long Bytes;
+            public DirectorySummary(string name, string path, long bytes) { Name = name; Path = path; Bytes = bytes; }
         }
     }
 

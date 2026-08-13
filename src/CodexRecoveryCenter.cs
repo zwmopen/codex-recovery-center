@@ -98,10 +98,10 @@ namespace CodexRecoveryCenter
                         Stopwatch timer = Stopwatch.StartNew();
                         RepairFinding finding = module.Detect();
                         report.AppendLine(module.Id + "=" + finding.StatusText + ";" + finding.Summary + ";ms=" + timer.ElapsedMilliseconds + ";evidence=" + finding.Evidence.Count);
-                        if (module.Id == "popup-audit")
+                        if (module.Id == "popup-audit" || module.Id == "storage")
                         {
                             foreach (string evidence in finding.Evidence.Take(12))
-                                report.AppendLine("popup-evidence=" + evidence);
+                                report.AppendLine(module.Id + "-evidence=" + evidence);
                         }
                     }
                     report.AppendLine("totalMs=" + total.ElapsedMilliseconds);
