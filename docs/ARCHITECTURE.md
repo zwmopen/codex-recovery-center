@@ -14,7 +14,8 @@ WindowsRepairCenterForm / WindowsToolShell
   ├─ StorageAnalysisModule：磁盘容量、缓存候选与用户资料只读分级
   ├─ PowerSpaceRepairModule：可重建缓存预览、确认清理与清理后复核
   ├─ PerformanceRepairModule：内存、临时文件、开发进程白名单与资源守卫
-  └─ StartupRepairModule：启动项、桌面入口、备份与迁移记录
+  ├─ StartupRepairModule：启动项、桌面入口、备份与迁移记录
+  └─ BuiltInToolbox：运行期模块注册、内置工具清单与命令行自检入口
 ```
 
 所有模块都返回 `Normal`、`NeedsAttention`、`NeedsConfirmation`、`Unsupported` 或 `Error`，UI 不直接执行未声明的系统操作。
@@ -52,6 +53,7 @@ WinForms GUI
 - 资源守卫与计划任务：`src\ResourceGuard.cs`
 - 主界面与日志窗口：`src\MainForm.cs`
 - 设置、主题、关于与更新：`src\ProductExperience.cs`
+- 运行期工具注册：`src\BuiltInToolbox.cs`（发布版修复逻辑随 EXE 内置）
 - 构建入口：`scripts\Build.ps1`
 - 源码优先启动：`scripts\run-windows-repair-center.vbs` → `scripts\Start-WindowsRepairCenter.ps1`
 - 发布文件：`releases\Windows-Repair-Center.exe`
@@ -72,5 +74,7 @@ WinForms GUI
 迁移期仍兼容读取 `%LOCALAPPDATA%\CodexRecoveryCenter` 的旧设置和资源守卫数据，不静默删除旧目录。
 
 程序使用系统自带 .NET Framework WinForms，发布文件不需要额外运行库。微软商店兜底依赖 Windows App Installer 提供的 `winget.exe`。
+
+发布版不会把 PowerShell/VBS 当作修复引擎依赖；它们只用于源码改动后的开发热更新和构建。可用 `Windows-Repair-Center.exe --toolbox-manifest <输出路径>` 导出当前 EXE 的内置工具清单。
 
 更新服务不需要 GitHub Token。它读取最新 GitHub Release 随附的 `manifest.json`，下载同版本 EXE 并核对 SHA-256；校验通过后仍由用户决定是否替换当前 EXE。

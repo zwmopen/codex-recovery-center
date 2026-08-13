@@ -1231,18 +1231,7 @@ namespace CodexRecoveryCenter
         public WindowsRepairCenterForm()
         {
             overviewModule = new OverviewRepairModule();
-            modules = new List<IRepairModule>
-            {
-                new CodexRepairModule(),
-                new BluetoothRepairModule(),
-                new MouseVoiceRepairModule(),
-                new PopupAuditRepairModule(),
-                new NetworkRepairModule(),
-                new StorageAnalysisModule(),
-                new PowerSpaceRepairModule(),
-                new PerformanceRepairModule(),
-                new StartupRepairModule()
-            };
+            modules = new List<IRepairModule>(BuiltInToolbox.CreateModules());
             selectedModule = overviewModule;
             sessionLog = Path.Combine(RepairCenterPaths.Logs, "session-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".log");
             appSettings = SettingsStore.Load();

@@ -15,7 +15,7 @@ namespace CodexRecoveryCenter
 {
     internal static class ProductInfo
     {
-        public const string Version = "2.4.0";
+        public const string Version = "2.5.0";
         public const string RepositoryUrl = "https://github.com/zwmopen/codex-recovery-center";
         public const string ReleasesUrl = RepositoryUrl + "/releases";
         public const string UpdateManifestUrl =
@@ -688,7 +688,7 @@ namespace CodexRecoveryCenter
             };
             privacy.Controls.Add(NewLabel("数据与隐私", 20, 14, 11F, FontStyle.Bold, null));
             privacy.Controls.Add(NewLabel(
-                "设置和诊断日志只保存在本机。不会上传聊天内容、账号凭据或私人日志。源码采用 MIT License。",
+                "设置和诊断日志只保存在本机。不会上传聊天内容、账号凭据或私人日志。修复逻辑已内置在 EXE，外部脚本只用于源码开发和热更新。源码采用 MIT License。",
                 20, 46, 510, 45, 9F, FontStyle.Regular, "muted"));
 
             var repoButton = NewButton("打开开源仓库", 30, 466, 170, 42, ButtonVisualRole.Secondary);

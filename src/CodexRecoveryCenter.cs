@@ -69,26 +69,29 @@ namespace CodexRecoveryCenter
                 }
                 return;
             }
+            if (args.Length == 2 && args[0] == "--toolbox-manifest")
+            {
+                try
+                {
+                    BuiltInToolbox.WriteManifest(args[1]);
+                }
+                catch (Exception ex)
+                {
+                    File.WriteAllText(args[1], "toolboxManifestError=" + ex, Encoding.UTF8);
+                    Environment.ExitCode = 2;
+                }
+                return;
+            }
             if (args.Length == 2 && args[0] == "--repair-center-self-test")
             {
                 try
                 {
-                    var modules = new IRepairModule[]
-                    {
-                        new CodexRepairModule(),
-                        new BluetoothRepairModule(),
-                        new MouseVoiceRepairModule(),
-                        new PopupAuditRepairModule(),
-                        new NetworkRepairModule(),
-                        new StorageAnalysisModule(),
-                        new PowerSpaceRepairModule(),
-                        new PerformanceRepairModule(),
-                        new StartupRepairModule()
-                    };
+                    IRepairModule[] modules = BuiltInToolbox.CreateModules();
                     var report = new StringBuilder();
                     report.AppendLine("Windows Repair Center self-test");
                     report.AppendLine("time=" + DateTime.Now.ToString("O"));
                     report.AppendLine("version=" + ProductInfo.Version);
+                    report.AppendLine("builtInTools=" + BuiltInToolbox.DefinitionsSnapshot().Length);
                     Stopwatch total = Stopwatch.StartNew();
                     foreach (IRepairModule module in modules)
                     {
