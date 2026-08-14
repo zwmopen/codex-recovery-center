@@ -1,6 +1,7 @@
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $release = Join-Path $projectRoot 'releases\Windows-Repair-Center.exe'
+$pendingRelease = Join-Path $projectRoot 'build\Windows-Repair-Center.pending.exe'
 $buildScript = Join-Path $PSScriptRoot 'Build.ps1'
 
 $sourceFiles = @(
@@ -24,6 +25,19 @@ if ($needsBuild) {
                 "Windows Repair Center", 0, 16) | Out-Null
             exit 2
         }
+    }
+}
+
+# A running release cannot be overwritten safely.  Build.ps1 leaves the new
+# binary here when the old window owns the file; apply it only on a later
+# launcher run, when the old process has already exited.
+if (Test-Path -LiteralPath $pendingRelease) {
+    try {
+        Copy-Item -LiteralPath $pendingRelease -Destination $release -Force
+        Remove-Item -LiteralPath $pendingRelease -Force
+    }
+    catch {
+        # Keep the pending binary for the next launch; never replace a live EXE.
     }
 }
 

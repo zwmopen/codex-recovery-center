@@ -1242,6 +1242,61 @@ namespace CodexRecoveryCenter
         }
     }
 
+    internal sealed class OpenClawRepairModule : RepairModuleBase
+    {
+        public override string Id { get { return "openclaw"; } }
+        public override string Title { get { return "小龙虾"; } }
+        public override string Caption { get { return "启动、重启、模型切换与内置网页"; } }
+
+        public override RepairFinding Detect()
+        {
+            try
+            {
+                OpenClawStatus status = OpenClawController.GetStatus();
+                if (!status.Available)
+                    return Finding(RepairFindingStatus.Error, "没有找到小龙虾控制脚本。", false, "", "请确认 " + OpenClawController.ManagerPath + " 仍在本机。", "需要人工处理");
+                RepairFinding finding = Finding(
+                    status.Running ? RepairFindingStatus.Normal : RepairFindingStatus.NeedsAttention,
+                    status.Running ? "小龙虾正在运行。" : "小龙虾当前未启动。",
+                    !status.Running,
+                    "启动小龙虾",
+                    "启动动作由本机控制脚本执行，不会写入密钥或上传诊断内容。",
+                    "本机控制；启动/重启会改变后台进程");
+                Add(finding, "运行状态=" + (status.Running ? "运行中" : "未启动"));
+                Add(finding, "当前模型=" + status.Model);
+                Add(finding, "控制脚本=" + OpenClawController.ManagerPath);
+                Add(finding, "控制面板操作：启动、重启、模型切换、打开控制网页");
+                if (status.Result != null && status.Result.ExitCode != 0)
+                    Add(finding, "状态读取返回：" + OpenClawController.Describe(status.Result));
+                return finding;
+            }
+            catch (Exception ex)
+            {
+                return Finding(RepairFindingStatus.Error, "小龙虾状态读取失败。", false, "", OneLine(ex.Message), "只读");
+            }
+        }
+
+        public override RepairFinding Repair()
+        {
+            CommandResult result = OpenClawController.Run("Start", null, 240000);
+            RepairFinding finding = Detect();
+            Add(finding, "启动结果=" + OpenClawController.Describe(result));
+            if (result.TimedOut || result.ExitCode != 0)
+            {
+                finding.Status = RepairFindingStatus.Error;
+                finding.Summary = "小龙虾启动没有完成。";
+                finding.CanRepair = true;
+            }
+            else
+            {
+                finding.Status = RepairFindingStatus.Normal;
+                finding.Summary = "小龙虾已启动。";
+                finding.CanRepair = false;
+            }
+            return finding;
+        }
+    }
+
     internal sealed class WindowsRepairCenterForm : ThemedForm
     {
         private readonly List<IRepairModule> modules;
@@ -1260,6 +1315,14 @@ namespace CodexRecoveryCenter
         private readonly SoftButton repairButton;
         private readonly SoftButton reportButton;
         private readonly SoftButton recordButton;
+        private readonly Panel openClawActions;
+        private readonly SoftButton openClawStartButton;
+        private readonly SoftButton openClawRestartButton;
+        private readonly SoftButton openClawDashboardButton;
+        private readonly SoftButton openClawSwitchButton;
+        private readonly SoftButton openClawRefreshButton;
+        private readonly ComboBox openClawModelsBox;
+        private readonly Label openClawModelHint;
         private readonly ProgressBar progress;
         private readonly string sessionLog;
         private readonly Dictionary<string, SoftButton> moduleButtons = new Dictionary<string, SoftButton>();
@@ -1331,12 +1394,27 @@ namespace CodexRecoveryCenter
             repairButton = MakeButton("执行建议修复", 0, 0, 150, 40, ButtonVisualRole.Primary); repairButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             reportButton = MakeButton("保存诊断报告", 162, 0, 150, 40, ButtonVisualRole.Secondary); reportButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             recordButton = MakeButton("查看处理记录", 324, 0, 150, 40, ButtonVisualRole.Ghost); recordButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
-            content.Controls.AddRange(new Control[] { moduleTitle, moduleCaption, moduleStatus, progress, evidenceBox, repairButton, reportButton, recordButton });
+            openClawActions = new Panel { Location = new Point(0, 0), Height = 82, BackColor = Color.Transparent, Visible = false, Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right };
+            openClawStartButton = MakeButton("启动小龙虾", 0, 0, 132, 36, ButtonVisualRole.Secondary);
+            openClawRestartButton = MakeButton("重启网关", 140, 0, 132, 36, ButtonVisualRole.Secondary);
+            openClawDashboardButton = MakeButton("打开控制网页", 280, 0, 150, 36, ButtonVisualRole.Ghost);
+            openClawModelHint = MakeLabel("模型", 0, 47, 8.5F, FontStyle.Regular, "muted");
+            openClawModelsBox = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Location = new Point(42, 43), Width = 300, Height = 34, Font = new Font("Microsoft YaHei UI", 9F), Anchor = AnchorStyles.Left | AnchorStyles.Right };
+            openClawSwitchButton = MakeButton("切换并重启", 350, 42, 132, 36, ButtonVisualRole.Primary);
+            openClawRefreshButton = MakeButton("刷新模型", 490, 42, 100, 36, ButtonVisualRole.Ghost);
+            openClawActions.Controls.AddRange(new Control[] { openClawStartButton, openClawRestartButton, openClawDashboardButton, openClawModelHint, openClawModelsBox, openClawSwitchButton, openClawRefreshButton });
+            content.Controls.AddRange(new Control[] { moduleTitle, moduleCaption, moduleStatus, progress, evidenceBox, openClawActions, repairButton, reportButton, recordButton });
             content.Layout += (s, e) =>
             {
                 progress.Width = Math.Max(120, content.ClientSize.Width);
+                int actionsHeight = openClawActions.Visible ? 100 : 0;
                 evidenceBox.Width = Math.Max(200, content.ClientSize.Width);
-                evidenceBox.Height = Math.Max(100, content.ClientSize.Height - 180);
+                evidenceBox.Height = Math.Max(100, content.ClientSize.Height - 180 - actionsHeight);
+                openClawActions.Width = Math.Max(420, content.ClientSize.Width);
+                openClawActions.Top = content.ClientSize.Height - 132;
+                openClawModelsBox.Width = Math.Max(180, openClawActions.ClientSize.Width - 390);
+                openClawSwitchButton.Left = openClawModelsBox.Right + 8;
+                openClawRefreshButton.Left = openClawSwitchButton.Right + 8;
                 repairButton.Top = content.ClientSize.Height - repairButton.Height;
                 reportButton.Top = repairButton.Top;
                 recordButton.Top = repairButton.Top;
@@ -1357,6 +1435,20 @@ namespace CodexRecoveryCenter
             repairButton.Click += async (s, e) => await RepairSelectedAsync();
             reportButton.Click += (s, e) => SaveReport();
             recordButton.Click += (s, e) => ShowSessionLog();
+            openClawStartButton.Click += async (s, e) => await RunOpenClawActionAsync("Start", null, "正在启动小龙虾…");
+            openClawRestartButton.Click += async (s, e) => await RunOpenClawActionAsync("Restart", null, "正在重启小龙虾网关…");
+            openClawDashboardButton.Click += async (s, e) => await RunOpenClawActionAsync("Dashboard", null, "正在打开小龙虾内置网页…");
+            openClawSwitchButton.Click += async (s, e) =>
+            {
+                string model = Convert.ToString(openClawModelsBox.SelectedItem);
+                if (String.IsNullOrWhiteSpace(model))
+                {
+                    MessageBox.Show(this, "请先选择模型。", "小龙虾", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+                await RunOpenClawActionAsync("SetModel", model, "正在验证模型、备份配置并重启小龙虾…");
+            };
+            openClawRefreshButton.Click += async (s, e) => await RefreshOpenClawModelsAsync();
             Load += async (s, e) => await ScanAllAsync();
             Shown += (s, e) => BeginInvoke((Action)(() => CenterToScreen()));
             ThemeManager.Apply(this, appSettings.Theme);
@@ -1420,6 +1512,9 @@ namespace CodexRecoveryCenter
         private void SelectModule(IRepairModule module)
         {
             selectedModule = module;
+            bool isOpenClaw = module.Id == "openclaw";
+            openClawActions.Visible = isOpenClaw;
+            repairButton.Visible = !isOpenClaw;
             foreach (KeyValuePair<string, SoftButton> entry in moduleButtons)
                 entry.Value.VisualRole = entry.Key == module.Id ? ButtonVisualRole.Secondary : ButtonVisualRole.Ghost;
             if (module.Id == overviewModule.Id)
@@ -1433,9 +1528,108 @@ namespace CodexRecoveryCenter
             if (!findings.TryGetValue(module.Id, out finding))
             {
                 RenderPending(module);
+                if (isOpenClaw && IsHandleCreated) BeginInvoke((Action)(async () => { await RefreshOpenClawStatusAsync(); await RefreshOpenClawModelsAsync(); }));
                 return;
             }
             RenderFinding(finding);
+            if (isOpenClaw && IsHandleCreated) BeginInvoke((Action)(async () => { await RefreshOpenClawStatusAsync(); await RefreshOpenClawModelsAsync(); }));
+        }
+
+        private async Task RefreshOpenClawStatusAsync()
+        {
+            if (busy || selectedModule == null || selectedModule.Id != "openclaw") return;
+            try
+            {
+                RepairFinding finding = await Task.Run(() => selectedModule.Detect());
+                findings[finding.ModuleId] = finding;
+                if (selectedModule.Id == "openclaw") RenderFinding(finding);
+            }
+            catch (Exception ex)
+            {
+                WriteLog("小龙虾状态刷新失败：" + ex.Message);
+            }
+        }
+
+        private async Task RefreshOpenClawModelsAsync()
+        {
+            if (busy || selectedModule == null || selectedModule.Id != "openclaw") return;
+            openClawRefreshButton.Enabled = false;
+            try
+            {
+                CommandResult command = null;
+                List<string> models = await Task.Run(() => OpenClawController.GetModels(out command));
+                openClawModelsBox.Items.Clear();
+                foreach (string model in models) openClawModelsBox.Items.Add(model);
+                string current = "";
+                RepairFinding finding;
+                if (findings.TryGetValue("openclaw", out finding))
+                    current = finding.Evidence.FirstOrDefault(line => line.StartsWith("当前模型=", StringComparison.Ordinal)) ?? "";
+                current = current.StartsWith("当前模型=", StringComparison.Ordinal) ? current.Substring("当前模型=".Length) : "";
+                int providerSeparator = current.IndexOf('/');
+                if (providerSeparator >= 0 && providerSeparator < current.Length - 1)
+                    current = current.Substring(providerSeparator + 1);
+                if (openClawModelsBox.Items.Contains(current)) openClawModelsBox.SelectedItem = current;
+                else if (openClawModelsBox.Items.Count > 0) openClawModelsBox.SelectedIndex = 0;
+                if (models.Count == 0 && command != null && command.ExitCode != 0)
+                    WriteLog("小龙虾模型读取失败：" + OpenClawController.Describe(command));
+                else
+                    WriteLog("小龙虾模型列表已刷新：" + models.Count + " 个");
+            }
+            catch (Exception ex)
+            {
+                WriteLog("小龙虾模型读取失败：" + ex.Message);
+            }
+            finally
+            {
+                openClawRefreshButton.Enabled = true;
+            }
+        }
+
+        private async Task RunOpenClawActionAsync(string action, string model, string message)
+        {
+            if (busy) return;
+            busy = true;
+            scanButton.Enabled = false;
+            repairButton.Enabled = false;
+            openClawStartButton.Enabled = false;
+            openClawRestartButton.Enabled = false;
+            openClawDashboardButton.Enabled = false;
+            openClawSwitchButton.Enabled = false;
+            openClawRefreshButton.Enabled = false;
+            progress.Visible = true;
+            moduleStatus.Text = message;
+            WriteLog("小龙虾操作：" + action + (String.IsNullOrWhiteSpace(model) ? "" : " / " + model));
+            try
+            {
+                int timeout = action == "SetModel" || action == "Start" || action == "Restart" ? 240000 : 30000;
+                CommandResult command = await Task.Run(() => OpenClawController.Run(action, model, timeout));
+                if (command.TimedOut || command.ExitCode != 0)
+                    WriteLog("小龙虾操作失败：" + OpenClawController.Describe(command));
+                else
+                    WriteLog("小龙虾操作完成：" + OpenClawController.Describe(command));
+                RepairFinding finding = await Task.Run(() => selectedModule.Detect());
+                findings[finding.ModuleId] = finding;
+                RenderFinding(finding);
+                if (command.TimedOut || command.ExitCode != 0)
+                    moduleStatus.Text = "操作未完成 · " + OpenClawController.Describe(command);
+                await RefreshOpenClawModelsAsync();
+            }
+            catch (Exception ex)
+            {
+                WriteLog("小龙虾操作异常：" + ex);
+                moduleStatus.Text = "操作失败 · " + ex.Message;
+            }
+            finally
+            {
+                busy = false;
+                scanButton.Enabled = true;
+                progress.Visible = false;
+                openClawStartButton.Enabled = true;
+                openClawRestartButton.Enabled = true;
+                openClawDashboardButton.Enabled = true;
+                openClawSwitchButton.Enabled = true;
+                openClawRefreshButton.Enabled = true;
+            }
         }
 
         private async Task ScanAllAsync()

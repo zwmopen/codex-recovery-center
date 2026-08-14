@@ -15,8 +15,20 @@ WindowsRepairCenterForm / WindowsToolShell
   ├─ PowerSpaceRepairModule：可重建缓存预览、确认清理与清理后复核
   ├─ PerformanceRepairModule：内存、临时文件、开发进程白名单与资源守卫
   ├─ StartupRepairModule：启动项、桌面入口、备份与迁移记录
+├─ OpenClawRepairModule：小龙虾状态读取和统一控制区（控制网页由系统浏览器打开）
   └─ BuiltInToolbox：运行期模块注册、内置工具清单与命令行自检入口
 ```
+
+### 小龙虾控制数据流
+
+```text
+Windows 修复中心（OpenClawRepairModule / 控制区）
+  ├─ Status / Models / Start / Restart / Dashboard / SetModel
+  └─ D:\AICode\AI\infrastructure\launchers\manage-openclaw.ps1
+       └─ OpenClaw + CockpitTools 本机 API（127.0.0.1）
+```
+
+模型列表由控制脚本合并两类来源：CockpitTools `127.0.0.1:62104/v1/models` 的实时模型，以及 OpenClaw `models.providers` 中已配置的本地 provider。切换前备份 `openclaw.json`；CockpitTools 模型写入 `codex-gateway/<model>`，本地 provider（例如 MiniMax）保留原 provider 前缀后重启验证。Windows 修复中心只负责统一呈现状态和发起操作。
 
 所有模块都返回 `Normal`、`NeedsAttention`、`NeedsConfirmation`、`Unsupported` 或 `Error`，UI 不直接执行未声明的系统操作。
 
@@ -49,7 +61,8 @@ WinForms GUI
 ## 关键文件
 
 - 程序入口与恢复引擎：`src\CodexRecoveryCenter.cs`
-- 统一修复外壳与模块：`src\WindowsRepairCenter.cs`（概览、Codex、蓝牙、鼠标语音、弹窗审计、网络、存储、资源和启动项）
+- 统一修复外壳与模块：`src\WindowsRepairCenter.cs`（概览、Codex、蓝牙、鼠标语音、弹窗审计、网络、存储、资源、启动项和小龙虾）
+- 小龙虾控制适配：`src\OpenClawController.cs`
 - 资源守卫与计划任务：`src\ResourceGuard.cs`
 - 主界面与日志窗口：`src\MainForm.cs`
 - 设置、主题、关于与更新：`src\ProductExperience.cs`

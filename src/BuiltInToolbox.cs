@@ -41,6 +41,7 @@ namespace CodexRecoveryCenter
             new BuiltInToolDefinition("power-space", "强力空间", "开发缓存、浏览器缓存和临时文件的预览与确认清理。", "PowerSpaceRepairModule", "逐项确认后清理"),
             new BuiltInToolDefinition("performance", "电脑加速与空间", "内存压力、临时文件、开发进程和资源守卫。", "PerformanceRepairModule", "低风险清理"),
             new BuiltInToolDefinition("startup", "启动项与桌面入口", "Startup、Run/RunOnce、任务和桌面快捷方式审计。", "StartupRepairModule", "只读"),
+            new BuiltInToolDefinition("openclaw", "小龙虾", "启动、重启、模型切换和控制网页。", "OpenClawRepairModule", "本机控制；操作前明确反馈"),
             new BuiltInToolDefinition("resource-guard", "资源守卫", "内置后台保护，按安全边界处理失控开发进程。", "ResourceGuard.RunOnce", "计划任务受控执行")
         };
 
@@ -61,7 +62,8 @@ namespace CodexRecoveryCenter
                 new StorageAnalysisModule(),
                 new PowerSpaceRepairModule(),
                 new PerformanceRepairModule(),
-                new StartupRepairModule()
+                new StartupRepairModule(),
+                new OpenClawRepairModule()
             };
         }
 
@@ -72,7 +74,8 @@ namespace CodexRecoveryCenter
             builder.AppendLine("version=" + ProductInfo.Version);
             builder.AppendLine("runtime=embedded-in-exe");
             builder.AppendLine("external-repair-scripts=none");
-            builder.AppendLine("注意：Build.ps1、Start-WindowsRepairCenter.ps1 和 VBS 仅用于源码开发/热更新，不是发布版修复逻辑依赖。");
+            builder.AppendLine("external-control-scripts=openclaw=" + OpenClawController.ManagerPath);
+            builder.AppendLine("注意：Build.ps1、Start-WindowsRepairCenter.ps1 和 VBS 仅用于源码开发/热更新；小龙虾控制复用本机控制脚本，不复制密钥或配置逻辑。");
             builder.AppendLine();
             foreach (BuiltInToolDefinition definition in Definitions)
             {

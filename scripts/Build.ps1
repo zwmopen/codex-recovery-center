@@ -8,6 +8,8 @@ $build = Join-Path $projectRoot 'build'
 $release = Join-Path $projectRoot 'releases\Windows-Repair-Center.exe'
 $version = (Get-Content -LiteralPath (Join-Path $projectRoot 'VERSION') -Raw).Trim()
 $versionedRelease = Join-Path $projectRoot ("releases\Windows-Repair-Center-v{0}.exe" -f $version)
+$stagedRelease = Join-Path $build ("Windows-Repair-Center-staged-{0}-{1}.exe" -f $version, ([Guid]::NewGuid().ToString('N')))
+$pendingRelease = Join-Path $build 'Windows-Repair-Center.pending.exe'
 $manifestPath = Join-Path $projectRoot 'releases\manifest.json'
 $compiler = 'C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 $icon = Join-Path $build 'Windows-Repair-Center.ico'
@@ -24,12 +26,26 @@ New-Item -ItemType Directory -Path $build -Force | Out-Null
     /reference:System.Windows.Forms.dll /reference:System.Web.Extensions.dll `
     /reference:System.Management.dll `
     /win32icon:$icon /win32manifest:$manifest `
-    /out:$release $sources
+    /out:$stagedRelease $sources
 if ($LASTEXITCODE -ne 0) {
     throw "Build failed with exit code $LASTEXITCODE"
 }
 
-Copy-Item -LiteralPath $release -Destination $versionedRelease -Force
+Copy-Item -LiteralPath $stagedRelease -Destination $versionedRelease -Force
+$releaseUpdated = $true
+try {
+    # The currently running EXE can be locked by Windows.  Never stop the user's
+    # window just to publish a source edit; leave a pending binary for the next
+    # launcher run instead.
+    Copy-Item -LiteralPath $stagedRelease -Destination $release -Force
+    Remove-Item -LiteralPath $pendingRelease -Force -ErrorAction SilentlyContinue
+}
+catch {
+    $releaseUpdated = $false
+    Copy-Item -LiteralPath $stagedRelease -Destination $pendingRelease -Force
+    Write-Warning ("Release is in use; new build staged. Close the current window and launch again to apply it. Reason: " + $_.Exception.Message)
+}
+$releaseForShortcut = if ($releaseUpdated) { $release } else { $versionedRelease }
 $hash = (Get-FileHash -LiteralPath $versionedRelease -Algorithm SHA256).Hash
 $sourceCommit = (& git -C $projectRoot rev-parse HEAD 2>$null)
 if ($LASTEXITCODE -ne 0) {
@@ -77,7 +93,7 @@ if ($InstallDesktopShortcut) {
     $shortcut.TargetPath = Join-Path $systemRoot 'System32\wscript.exe'
     $shortcut.Arguments = '"' + $launcher + '"'
     $shortcut.WorkingDirectory = $projectRoot
-    $shortcut.IconLocation = "$release,0"
+    $shortcut.IconLocation = "$releaseForShortcut,0"
     $shortcut.Description = 'Windows local diagnosis, safe repair and verification'
     $shortcut.Save()
 
@@ -100,6 +116,8 @@ if ($InstallDesktopShortcut) {
 [pscustomobject]@{
     Release = $release
     VersionedRelease = $versionedRelease
+    ReleaseUpdated = $releaseUpdated
+    PendingRelease = if (-not $releaseUpdated) { $pendingRelease } else { '' }
     Bytes = (Get-Item -LiteralPath $release).Length
     SHA256 = $hash
     Manifest = $manifestPath

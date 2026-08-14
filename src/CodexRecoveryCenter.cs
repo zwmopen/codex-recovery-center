@@ -777,6 +777,11 @@ namespace CodexRecoveryCenter
             return RunProcess(file, args, timeoutMs, elapsedProgress, Encoding.Default);
         }
 
+        public static CommandResult RunProcessUtf8(string file, string args, int timeoutMs)
+        {
+            return RunProcess(file, args, timeoutMs, null, Encoding.UTF8);
+        }
+
         private static CommandResult RunProcess(string file, string args, int timeoutMs,
             Action<int> elapsedProgress, Encoding outputEncoding)
         {

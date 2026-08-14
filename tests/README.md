@@ -1,5 +1,11 @@
 # 验收
 
+## 2.7.2 已通过
+
+- 当前运行中的旧版 EXE 会锁定通用发布文件；`Build.ps1 -InstallDesktopShortcut` 已真实复现该条件并返回 0，生成版本化 `Windows-Repair-Center-v2.7.2.exe`、暂存 `build\Windows-Repair-Center.pending.exe`，未强杀旧窗口。
+- 版本化 EXE 的 `--repair-center-self-test` 返回码 0：10 个诊断模块完成检查，小龙虾为“运行中”，存储分析输出 D 盘与 `D:\AICode` 顶层排行，弹窗审计输出脱敏证据样本。
+- `manage-openclaw.ps1 -Action Models` 返回 16 个本机模型，包含 GPT、MiniMax、GLM、DeepSeek；桌面快捷方式已更新图标到 v2.7.2。
+
 ## 1.6.0 已通过
 
 - C# x64 WinForms 构建成功；Windows 文件版本与产品版本均为 `1.6.0`。

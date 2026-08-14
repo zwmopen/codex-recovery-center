@@ -1,7 +1,33 @@
 # 开发交接
 
-最后核对：2026-08-13
-当前版本：2.6.0
+最后核对：2026-08-14
+当前版本：2.7.2
+
+## 2.7.2 当前交付状态
+
+- 复现并修复源码热更新时运行中的 EXE 锁文件导致 `CS0016` 构建失败：`Build.ps1` 先输出版本化成品，无法覆盖时写入 `build\Windows-Repair-Center.pending.exe`；下次桌面启动会在旧进程退出后自动替换。
+- 热更新不强行结束用户当前窗口；构建输出包含 `ReleaseUpdated` / `PendingRelease`，便于判断是否已经切换到新成品。
+- 小龙虾控制区统一使用“打开控制网页”文案；工具清单列出外部控制脚本依赖，保持密钥、配置和 provider 路由的唯一真源仍在 OpenClaw 基础设施。
+- 真实验收：`Windows-Repair-Center-v2.7.2.exe --repair-center-self-test` 返回码 0；10 个模块完成检查，小龙虾状态为运行中，模型动作脚本返回 GPT、MiniMax、GLM、DeepSeek 等 16 个模型。
+
+## 2.7.1 当前交付状态
+
+## 2.7.1 当前交付状态
+
+- 模型下拉统一读取 CockpitTools 实时模型和小龙虾 `models.providers` 中已配置的本地 provider。
+- 当前本机可见 MiniMax：`MiniMax-M3`、`MiniMax-M2.7-highspeed`，切换目标分别为 `minimax-53hk/MiniMax-M3` 和 `minimax-53hk/MiniMax-M2.7-highspeed`。
+- 切换 GPT 时仍使用 `codex-gateway`；切换 MiniMax 时不改写为 GPT 网关，避免 provider 串线。
+- 验收：运行 `manage-openclaw.ps1 -Action Models` 应同时看到 GPT、MiniMax、GLM、DeepSeek 等本机已接入模型。
+
+## 2.7.0 当前交付状态
+
+- 小龙虾已作为 `OpenClawRepairModule` 内置到 Windows 修复中心左侧模块列表。
+- 右侧控制区提供启动、重启、打开控制网页、刷新 CockpitTools 模型列表和切换并重启；状态区显示运行状态与当前默认模型。
+- 底层仍复用 `D:\AICode\AI\infrastructure\launchers\manage-openclaw.ps1`，不在修复中心复制密钥或配置逻辑。
+- 桌面只保留 `C:\Users\z\Desktop\Windows 修复中心.lnk`；独立小龙虾入口移入 `%LOCALAPPDATA%\WindowsRepairCenter\backups\desktop-shortcuts` 可恢复目录。
+- 模型切换使用控制脚本的 `Models` / `SetModel` 动作；控制脚本在切换前备份 `openclaw.json`，失败时回滚。
+- 小龙虾启动器会在当前进程没有继承环境变量时，从 Windows 用户级环境变量补齐 `OPENCLAW_GATEWAY_TOKEN` 和 `OPENCLAW_FEISHU_APP_SECRET`；只注入子进程，不写日志、不写仓库。
+- 验收：已完成构建与 `--repair-center-self-test`；打开发布 EXE 后点击“小龙虾”模块可继续人工核验状态、模型刷新和桌面入口。
 
 ## 2.6.0 当前交付状态
 
@@ -19,7 +45,7 @@
 
 - 运行期工具包已内置到 `src\BuiltInToolbox.cs`：统一注册九个诊断/修复模块，并提供资源守卫清单项。
 - 主界面和 `--repair-center-self-test` 共用同一模块工厂，避免新增模块只接入一处而漏掉自检。
-- `--toolbox-manifest <路径>` 可从发布 EXE 导出内置工具清单；发布版修复逻辑不依赖外部 `.ps1/.vbs`。
+- `--toolbox-manifest <路径>` 可从发布 EXE 导出内置工具清单；发布版修复逻辑不依赖外部 `.ps1/.vbs`，小龙虾控制属于明确标注的本机外部控制适配。
 - `Build.ps1`、`Start-WindowsRepairCenter.ps1` 和 `run-windows-repair-center.vbs` 仍保留为开发/热更新入口，不移动到运行期逻辑中。
 
 ## 2.3.0 当前交付状态
