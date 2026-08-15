@@ -1,5 +1,10 @@
 # 验收
 
+## 2.10.0 聚合工具箱回归
+
+- `powershell -NoProfile -ExecutionPolicy Bypass -File tests\Test-InterfaceControls.ps1` 检查左侧快捷工具/设置导航、右侧内嵌页面、产品命名和低频入口收口。
+- 启动发布 EXE，确认主窗口标题为“个人聚合工具箱”，左侧点击“快捷工具”和“设置”后右侧切换内容，不弹出独立模态窗口。
+
 ## 2.8.0 静态回归
 
 - `powershell -NoProfile -ExecutionPolicy Bypass -File tests\Test-InterfaceControls.ps1` 检查快捷工具入口、深色/浅色设置、更多菜单、真实扫描文案和按状态显示修复按钮。

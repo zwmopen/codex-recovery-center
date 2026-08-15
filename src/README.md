@@ -1,10 +1,10 @@
 # 源码
 
-这里是功能源码唯一真源。
+这里是“个人聚合工具箱”的功能源码唯一真源。
 
 - `CodexRecoveryCenter.cs`：程序入口、AppX 状态检查、注册修复、微软商店重新暂存与安全启动。
 - `MainForm.cs`：主界面、状态反馈、恢复流程编排和独立日志窗口。
-- `ProductExperience.cs`：两套主题、设置持久化、设置页、关于页、安全更新与更新自检。
+- `ProductExperience.cs`：两套主题、设置持久化、右侧设置页、关于页、安全更新与更新自检。
 - `QuickTools.cs`：用户视角的快捷工具集合，复用现有检测/修复模块。
 - `assets\app.manifest`：Windows DPI 感知声明。
 - `scripts\GenerateIcon.ps1`：生成可复现的多尺寸应用图标。

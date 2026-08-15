@@ -1310,14 +1310,14 @@ namespace CodexRecoveryCenter
         private readonly Label moduleStatus;
         private readonly TextBox evidenceBox;
         private readonly SoftButton scanButton;
-        private readonly SoftButton quickToolsButton;
-        private readonly SoftButton settingsButton;
         private readonly SoftButton moreButton;
         private readonly SoftButton repairButton;
         private readonly ContextMenuStrip moreMenu;
         private readonly ToolStripMenuItem reportMenuItem;
         private readonly ToolStripMenuItem recordMenuItem;
         private readonly Panel openClawActions;
+        private readonly Panel backupActions;
+        private readonly SoftButton backupDashboardButton;
         private readonly SoftButton openClawStartButton;
         private readonly SoftButton openClawRestartButton;
         private readonly SoftButton openClawDashboardButton;
@@ -1326,6 +1326,7 @@ namespace CodexRecoveryCenter
         private readonly ComboBox openClawModelsBox;
         private readonly Label openClawModelHint;
         private readonly ProgressBar progress;
+        private readonly Panel embeddedPageHost;
         private readonly string sessionLog;
         private readonly Dictionary<string, SoftButton> moduleButtons = new Dictionary<string, SoftButton>();
         private IRepairModule selectedModule;
@@ -1340,7 +1341,7 @@ namespace CodexRecoveryCenter
             sessionLog = Path.Combine(RepairCenterPaths.Logs, "session-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".log");
             appSettings = SettingsStore.Load();
 
-            Text = "Windows 修复中心";
+            Text = ProductInfo.ProductName;
             // Keep the first view readable on a 100% 1366px display and leave
             // enough room for the evidence pane without forcing tiny controls.
             ClientSize = new Size(1280, 760);
@@ -1358,21 +1359,17 @@ namespace CodexRecoveryCenter
             Controls.Add(root);
 
             var header = new Panel { Dock = DockStyle.Fill, BackColor = Color.Transparent };
-            Label title = MakeLabel("Windows 修复中心", 0, 0, 17F, FontStyle.Bold, "title");
-            Label subtitle = MakeLabel("本机诊断 · 安全修复 · 可验证回滚", 2, 31, 8.5F, FontStyle.Regular, "muted");
-            settingsButton = MakeButton("设置", 0, 4, 72, 40, ButtonVisualRole.Ghost);
+            Label title = MakeLabel(ProductInfo.ProductName, 0, 0, 17F, FontStyle.Bold, "title");
+            Label subtitle = MakeLabel("一键工具 · 本机可控 · 结果可追踪", 2, 31, 8.5F, FontStyle.Regular, "muted");
             moreButton = MakeButton("更多", 0, 4, 72, 40, ButtonVisualRole.Ghost);
-            quickToolsButton = MakeButton("快捷工具", 0, 4, 92, 40, ButtonVisualRole.Secondary);
             scanButton = MakeButton("开始检查", 0, 4, 122, 40, ButtonVisualRole.Primary);
             scanButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            settingsButton.Anchor = moreButton.Anchor = quickToolsButton.Anchor = scanButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            header.Controls.AddRange(new Control[] { title, subtitle, quickToolsButton, settingsButton, moreButton, scanButton });
+            moreButton.Anchor = scanButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            header.Controls.AddRange(new Control[] { title, subtitle, moreButton, scanButton });
             header.Layout += (s, e) =>
             {
                 scanButton.Left = header.ClientSize.Width - scanButton.Width;
                 moreButton.Left = scanButton.Left - moreButton.Width - 8;
-                settingsButton.Left = moreButton.Left - settingsButton.Width - 6;
-                quickToolsButton.Left = settingsButton.Left - quickToolsButton.Width - 6;
             };
             root.Controls.Add(header, 0, 0);
 
@@ -1397,6 +1394,9 @@ namespace CodexRecoveryCenter
             evidenceBox = new TextBox { Location = new Point(0, 126), Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, BorderStyle = BorderStyle.None, BackColor = Color.FromArgb(226, 235, 241), Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right, Font = new Font("Consolas", 9F), TabStop = false };
             repairButton = MakeButton("执行建议修复", 0, 0, 150, 40, ButtonVisualRole.Primary); repairButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             openClawActions = new Panel { Location = new Point(0, 0), Height = 82, BackColor = Color.Transparent, Visible = false, Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right };
+            backupActions = new Panel { Location = new Point(0, 0), Height = 54, BackColor = Color.Transparent, Visible = false, Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right };
+            backupDashboardButton = MakeButton("打开详细监控台", 0, 0, 150, 36, ButtonVisualRole.Secondary);
+            backupActions.Controls.Add(backupDashboardButton);
             openClawStartButton = MakeButton("启动小龙虾", 0, 0, 132, 36, ButtonVisualRole.Secondary);
             openClawRestartButton = MakeButton("重启网关", 140, 0, 132, 36, ButtonVisualRole.Secondary);
             openClawDashboardButton = MakeButton("打开控制网页", 280, 0, 150, 36, ButtonVisualRole.Ghost);
@@ -1405,16 +1405,26 @@ namespace CodexRecoveryCenter
             openClawSwitchButton = MakeButton("切换并重启", 350, 42, 132, 36, ButtonVisualRole.Primary);
             openClawRefreshButton = MakeButton("刷新模型", 490, 42, 100, 36, ButtonVisualRole.Ghost);
             openClawActions.Controls.AddRange(new Control[] { openClawStartButton, openClawRestartButton, openClawDashboardButton, openClawModelHint, openClawModelsBox, openClawSwitchButton, openClawRefreshButton });
-            content.Controls.AddRange(new Control[] { moduleTitle, moduleCaption, moduleStatus, progress, evidenceBox, openClawActions, repairButton });
+            embeddedPageHost = new Panel
+            {
+                Dock = DockStyle.Fill,
+                BackColor = Color.Transparent,
+                Visible = false,
+                Padding = new Padding(0)
+            };
+            content.Controls.AddRange(new Control[] { moduleTitle, moduleCaption, moduleStatus, progress, evidenceBox, openClawActions, backupActions, repairButton });
+            content.Controls.Add(embeddedPageHost);
             content.Layout += (s, e) =>
             {
                 progress.Width = Math.Max(120, content.ClientSize.Width);
-                int actionsHeight = openClawActions.Visible ? 100 : 0;
+                int actionsHeight = openClawActions.Visible || backupActions.Visible ? 100 : 0;
                 int repairHeight = repairButton.Visible ? 70 : 24;
                 evidenceBox.Width = Math.Max(200, content.ClientSize.Width);
                 evidenceBox.Height = Math.Max(100, content.ClientSize.Height - 126 - repairHeight - actionsHeight);
                 openClawActions.Width = Math.Max(420, content.ClientSize.Width);
                 openClawActions.Top = content.ClientSize.Height - 132;
+                backupActions.Width = Math.Max(240, content.ClientSize.Width);
+                backupActions.Top = content.ClientSize.Height - 92;
                 openClawModelsBox.Width = Math.Max(180, openClawActions.ClientSize.Width - 390);
                 openClawSwitchButton.Left = openClawModelsBox.Right + 8;
                 openClawRefreshButton.Left = openClawSwitchButton.Right + 8;
@@ -1422,21 +1432,19 @@ namespace CodexRecoveryCenter
             };
             body.Controls.Add(content, 1, 0);
 
-            Label footer = MakeLabel("本地运行 · 不上传诊断日志 · 修复前显示影响与备份 · 桌面入口将统一为 Windows 修复中心", 0, 0, 8.5F, FontStyle.Regular, "muted");
+            Label footer = MakeLabel("本地运行 · 不上传诊断日志 · 一键工具先说明影响 · 结果保存在本机", 0, 0, 8.5F, FontStyle.Regular, "muted");
             footer.Dock = DockStyle.Fill; footer.TextAlign = ContentAlignment.MiddleLeft;
             root.Controls.Add(footer, 0, 2);
 
             BuildModuleButtons();
             scanButton.Click += async (s, e) => await ScanAllAsync();
-            quickToolsButton.Click += (s, e) => OpenQuickTools();
-            settingsButton.Click += (s, e) => OpenSettings();
             moreMenu = new ContextMenuStrip
             {
                 Font = new Font("Microsoft YaHei UI", 9F),
                 ShowImageMargin = false,
                 AutoSize = true
             };
-            var aboutMenuItem = new ToolStripMenuItem("关于 Windows 修复中心");
+            var aboutMenuItem = new ToolStripMenuItem("关于 " + ProductInfo.ProductName);
             aboutMenuItem.Click += (s, e) =>
             {
                 using (var about = new AboutForm(appSettings.Theme, appSettings.ColorMode)) about.ShowDialog(this);
@@ -1455,6 +1463,7 @@ namespace CodexRecoveryCenter
                 moreMenu.Show(moreButton, new Point(0, moreButton.Height));
             };
             repairButton.Click += async (s, e) => await RepairSelectedAsync();
+            backupDashboardButton.Click += (s, e) => OpenBackupDashboard();
             openClawStartButton.Click += async (s, e) => await RunOpenClawActionAsync("Start", null, "正在启动小龙虾…");
             openClawRestartButton.Click += async (s, e) => await RunOpenClawActionAsync("Restart", null, "正在重启小龙虾网关…");
             openClawDashboardButton.Click += async (s, e) => await RunOpenClawActionAsync("Dashboard", null, "正在打开小龙虾控制网页…");
@@ -1475,15 +1484,37 @@ namespace CodexRecoveryCenter
             SelectModule(selectedModule);
         }
 
-        private void OpenSettings()
+        private void OpenSettingsPage()
         {
-            using (var settings = new SettingsForm(appSettings, ApplySettings, CheckUpdatesAsync, appSettings.ColorMode))
-                settings.ShowDialog(this);
+            SelectNavigation("settings");
         }
 
-        private void OpenQuickTools()
+        private void OpenQuickToolsPage()
         {
-            using (var tools = new QuickToolsForm(
+            SelectNavigation("quick-tools");
+        }
+
+        private void ShowEmbeddedPage(Form page)
+        {
+            ClearEmbeddedPage();
+            SetCoreContentVisible(false);
+            page.TopLevel = false;
+            page.FormBorderStyle = FormBorderStyle.None;
+            page.ShowInTaskbar = false;
+            page.Dock = DockStyle.Fill;
+            page.FormClosed += (s, e) =>
+            {
+                if (!IsDisposed) ClearEmbeddedPage();
+            };
+            embeddedPageHost.Controls.Add(page);
+            embeddedPageHost.Visible = true;
+            embeddedPageHost.BringToFront();
+            page.Show();
+        }
+
+        private void ShowQuickToolsPage()
+        {
+            ShowEmbeddedPage(new QuickToolsForm(
                 appSettings.Theme,
                 appSettings.ColorMode,
                 ScanAllAsync,
@@ -1491,7 +1522,8 @@ namespace CodexRecoveryCenter
                 {
                     IRepairModule target = modules.FirstOrDefault(module =>
                         module.Id.Equals(id, StringComparison.OrdinalIgnoreCase));
-                    if (target != null) SelectModule(target);
+                    if (target != null && IsHandleCreated)
+                        BeginInvoke((Action)(() => SelectModule(target)));
                 },
                 () =>
                 {
@@ -1499,9 +1531,47 @@ namespace CodexRecoveryCenter
                         relief.ShowDialog(this);
                 },
                 WriteLog))
+            ;
+        }
+
+        private void ShowSettingsPage()
+        {
+            ShowEmbeddedPage(new SettingsForm(appSettings, ApplySettings, CheckUpdatesAsync, appSettings.ColorMode));
+        }
+
+        private void ClearEmbeddedPage()
+        {
+            embeddedPageHost.Visible = false;
+            while (embeddedPageHost.Controls.Count > 0)
             {
-                tools.ShowDialog(this);
+                Control child = embeddedPageHost.Controls[0];
+                embeddedPageHost.Controls.RemoveAt(0);
+                child.Dispose();
             }
+            SetCoreContentVisible(true);
+        }
+
+        private void SetCoreContentVisible(bool visible)
+        {
+            moduleTitle.Visible = moduleCaption.Visible = moduleStatus.Visible = visible;
+            evidenceBox.Visible = visible;
+            if (!visible)
+            {
+                progress.Visible = false;
+                openClawActions.Visible = false;
+                backupActions.Visible = false;
+                repairButton.Visible = false;
+                return;
+            }
+            UpdateActionVisibility();
+        }
+
+        private void SelectNavigation(string id)
+        {
+            foreach (KeyValuePair<string, SoftButton> entry in moduleButtons)
+                entry.Value.VisualRole = entry.Key == id ? ButtonVisualRole.Secondary : ButtonVisualRole.Ghost;
+            if (id == "quick-tools") ShowQuickToolsPage();
+            else if (id == "settings") ShowSettingsPage();
         }
 
         private async Task CheckUpdatesAsync()
@@ -1550,10 +1620,25 @@ namespace CodexRecoveryCenter
                 moduleList.Controls.Add(button);
                 moduleButtons[module.Id] = button;
             }
+
+            SoftButton quickToolsButton = MakeButton("快捷工具", 0, 0, 262, 42, ButtonVisualRole.Ghost);
+            quickToolsButton.TextAlign = ContentAlignment.MiddleLeft;
+            quickToolsButton.Margin = new Padding(0, 8, 0, 7);
+            quickToolsButton.Click += (s, e) => OpenQuickToolsPage();
+            moduleList.Controls.Add(quickToolsButton);
+            moduleButtons["quick-tools"] = quickToolsButton;
+
+            SoftButton settingsButton = MakeButton("设置", 0, 0, 262, 42, ButtonVisualRole.Ghost);
+            settingsButton.TextAlign = ContentAlignment.MiddleLeft;
+            settingsButton.Margin = new Padding(0, 0, 0, 7);
+            settingsButton.Click += (s, e) => OpenSettingsPage();
+            moduleList.Controls.Add(settingsButton);
+            moduleButtons["settings"] = settingsButton;
         }
 
         private void SelectModule(IRepairModule module)
         {
+            ClearEmbeddedPage();
             selectedModule = module;
             bool isOpenClaw = module.Id == "openclaw";
             foreach (KeyValuePair<string, SoftButton> entry in moduleButtons)
@@ -1824,13 +1909,40 @@ namespace CodexRecoveryCenter
         private void UpdateActionVisibility()
         {
             bool isOpenClaw = selectedModule != null && selectedModule.Id == "openclaw";
+            bool isBackup = selectedModule != null && selectedModule.Id == "backup";
             RepairFinding finding;
             bool canRepair = !isOpenClaw && selectedModule != null &&
                 selectedModule.Id != overviewModule.Id &&
                 findings.TryGetValue(selectedModule.Id, out finding) && finding.CanRepair;
             openClawActions.Visible = isOpenClaw && OpenClawController.IsAvailable;
+            backupActions.Visible = isBackup;
             repairButton.Visible = canRepair;
             repairButton.Enabled = canRepair && !busy;
+        }
+
+        private void OpenBackupDashboard()
+        {
+            try
+            {
+                HttpWebRequest request = (HttpWebRequest)WebRequest.Create(BackupMonitorPaths.DashboardUrl);
+                request.Method = "GET";
+                request.Timeout = 1200;
+                using (HttpWebResponse response = (HttpWebResponse)request.GetResponse()) { }
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = BackupMonitorPaths.DashboardUrl,
+                    UseShellExecute = true
+                });
+            }
+            catch
+            {
+                MessageBox.Show(
+                    this,
+                    "详细监控台服务当前没有响应。\n\n请先运行备份面板目录中的 open-backup-dashboard.ps1，再从这里打开。\n\n修复中心内置的备份摘要仍然可以正常读取。",
+                    "备份监控台",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+            }
         }
 
         private void RefreshMoreMenuState()
@@ -1885,7 +1997,7 @@ namespace CodexRecoveryCenter
         {
             string path = Path.Combine(RepairCenterPaths.Reports, "repair-report-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".txt");
             var builder = new StringBuilder();
-            builder.AppendLine("Windows 修复中心诊断报告");
+            builder.AppendLine(ProductInfo.ProductName + "诊断报告");
             builder.AppendLine("时间：" + DateTime.Now.ToString("O"));
             builder.AppendLine("版本：" + ProductInfo.Version);
             builder.AppendLine();

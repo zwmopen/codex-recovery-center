@@ -15,7 +15,8 @@ namespace CodexRecoveryCenter
 {
     internal static class ProductInfo
     {
-        public const string Version = "2.8.0";
+        public const string ProductName = "个人聚合工具箱";
+        public const string Version = "2.10.0";
         public const string RepositoryUrl = "https://github.com/zwmopen/codex-recovery-center";
         public const string ReleasesUrl = RepositoryUrl + "/releases";
         public const string UpdateManifestUrl =
@@ -585,7 +586,7 @@ namespace CodexRecoveryCenter
             applySettings = apply;
             checkUpdates = check;
 
-            Text = "设置 · Windows 修复中心";
+            Text = "设置 · " + ProductInfo.ProductName;
             ClientSize = new Size(600, 675);
             MinimumSize = new Size(560, 645);
             StartPosition = FormStartPosition.CenterParent;
@@ -636,8 +637,11 @@ namespace CodexRecoveryCenter
 
             hint = LabelAt("设置保存在本机，不会同步到云端。", 32, 568, 9F,
                 FontStyle.Regular, "muted");
+            hint.Anchor = AnchorStyles.Left | AnchorStyles.Bottom;
             saveButton = ButtonAt("保存设置", 420, 596, 150, 42, ButtonVisualRole.Primary);
+            saveButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             var cancelButton = ButtonAt("取消", 314, 596, 92, 42, ButtonVisualRole.Ghost);
+            cancelButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
 
             Controls.AddRange(new Control[]
                 { title, themeCard, modeCard, guardCard, updateCard, hint, saveButton, cancelButton });
@@ -748,14 +752,14 @@ namespace CodexRecoveryCenter
     {
         public AboutForm(VisualTheme theme, ColorMode colorMode = ColorMode.Light)
         {
-            Text = "关于 · Windows 修复中心";
+            Text = "关于 · " + ProductInfo.ProductName;
             ClientSize = new Size(620, 535);
             MinimumSize = new Size(580, 500);
             StartPosition = FormStartPosition.CenterParent;
             Font = new Font("Microsoft YaHei UI", 10F);
             AutoScaleMode = AutoScaleMode.Dpi;
 
-            var title = NewLabel("Windows 修复中心", 32, 26, 20F, FontStyle.Bold, null);
+            var title = NewLabel(ProductInfo.ProductName, 32, 26, 20F, FontStyle.Bold, null);
             var version = NewLabel("v" + ProductInfo.Version + " · Windows 本机诊断与修复工具",
                 34, 68, 9.5F, FontStyle.Bold, "accent");
             var intro = NewLabel(

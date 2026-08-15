@@ -41,6 +41,7 @@ namespace CodexRecoveryCenter
             new BuiltInToolDefinition("power-space", "强力空间", "开发缓存、浏览器缓存和临时文件的预览与确认清理。", "PowerSpaceRepairModule", "逐项确认后清理"),
             new BuiltInToolDefinition("performance", "电脑加速与空间", "内存压力、临时文件、开发进程和资源守卫。", "PerformanceRepairModule", "低风险清理"),
             new BuiltInToolDefinition("startup", "启动项与桌面入口", "Startup、Run/RunOnce、任务和桌面快捷方式审计。", "StartupRepairModule", "只读"),
+            new BuiltInToolDefinition("backup", "备份中心", "技能、专属配置和 WebDAV 增量同步状态。", "BackupMonitorModule", "只读；不控制上传"),
             new BuiltInToolDefinition("openclaw", "小龙虾", "启动、重启、模型切换和控制网页。", "OpenClawRepairModule", "本机控制；操作前明确反馈"),
             new BuiltInToolDefinition("quick-tools", "快捷工具", "把常用检查、空间、网络、蓝牙、内存和小龙虾动作集中到一个入口。", "QuickToolsForm", "逐项确认；不静默修改"),
             new BuiltInToolDefinition("resource-guard", "资源守卫", "内置后台保护，按安全边界处理失控开发进程。", "ResourceGuard.RunOnce", "计划任务受控执行")
@@ -64,6 +65,7 @@ namespace CodexRecoveryCenter
                 new PowerSpaceRepairModule(),
                 new PerformanceRepairModule(),
                 new StartupRepairModule(),
+                new BackupMonitorModule(),
                 new OpenClawRepairModule()
             };
         }
@@ -71,7 +73,7 @@ namespace CodexRecoveryCenter
         public static string BuildManifest()
         {
             var builder = new StringBuilder();
-            builder.AppendLine("Windows 修复中心内置工具包");
+            builder.AppendLine(ProductInfo.ProductName + "内置工具包");
             builder.AppendLine("version=" + ProductInfo.Version);
             builder.AppendLine("runtime=embedded-in-exe");
             builder.AppendLine("external-repair-scripts=none");

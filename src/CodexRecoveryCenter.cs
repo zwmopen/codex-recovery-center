@@ -88,7 +88,7 @@ namespace CodexRecoveryCenter
                 {
                     IRepairModule[] modules = BuiltInToolbox.CreateModules();
                     var report = new StringBuilder();
-                    report.AppendLine("Windows Repair Center self-test");
+                    report.AppendLine(ProductInfo.ProductName + " self-test");
                     report.AppendLine("time=" + DateTime.Now.ToString("O"));
                     report.AppendLine("version=" + ProductInfo.Version);
                     report.AppendLine("builtInTools=" + BuiltInToolbox.DefinitionsSnapshot().Length);
@@ -160,8 +160,8 @@ namespace CodexRecoveryCenter
             }
 
             MessageBox.Show(
-                "恢复中心已经在运行或正在处理。\n\n请查看已有窗口，不要重复启动修复。",
-                "恢复正在进行", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ProductInfo.ProductName + "已经在运行或正在处理。\n\n请查看已有窗口，不要重复启动同一个工具。",
+                ProductInfo.ProductName + "正在运行", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
     }
 
@@ -1051,7 +1051,7 @@ namespace CodexRecoveryCenter
         public LegacyMainForm()
         {
             appSettings = SettingsStore.Load();
-            Text = "Windows 修复中心 · 兼容视图";
+            Text = ProductInfo.ProductName + " · 兼容视图";
             ClientSize = new Size(820, 610);
             MinimumSize = new Size(760, 570);
             StartPosition = FormStartPosition.CenterScreen;

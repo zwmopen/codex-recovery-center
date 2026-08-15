@@ -1,9 +1,9 @@
 # 架构
 
-## 2.0 统一修复外壳
+## 2.0 个人聚合工具箱外壳
 
 ```text
-WindowsRepairCenterForm / WindowsToolShell
+WindowsRepairCenterForm / PersonalToolboxShell
   ├─ 单实例、主题、DPI、模块导航与健康总览
   ├─ IRepairModule：Detect → Evidence → Repair → Verify（模块内复查）→ Rollback（如有备份）
   ├─ CodexRepairModule：AppX、GPU、崩溃与 ResourceGuard
@@ -15,6 +15,7 @@ WindowsRepairCenterForm / WindowsToolShell
   ├─ PowerSpaceRepairModule：可重建缓存预览、确认清理与清理后复核
   ├─ PerformanceRepairModule：内存、临时文件、开发进程白名单与资源守卫
   ├─ StartupRepairModule：启动项、桌面入口、备份与迁移记录
+  ├─ BackupMonitorModule：技能库、专属配置和 WebDAV 增量同步只读状态
 ├─ OpenClawRepairModule：小龙虾状态读取和统一控制区（控制网页由系统浏览器打开）
   └─ BuiltInToolbox：运行期模块注册、内置工具清单与命令行自检入口
 ```
@@ -35,9 +36,9 @@ Windows 修复中心（OpenClawRepairModule / 控制区）
 ```text
 WinForms GUI
   ├─ Single-instance mutex：重复启动只唤醒已有窗口
-  ├─ WindowsRepairCenterForm：健康总览、模块导航、证据、设置、记录与安全修复入口
+  ├─ WindowsRepairCenterForm：左侧工具导航、右侧聚合页面、证据、设置、记录与安全动作入口
   ├─ MainForm：旧版 Codex 专用界面，保留作回退参考
-  ├─ SettingsForm：双主题与更新偏好
+  ├─ SettingsForm：双主题、深浅色模式与更新偏好（可嵌入右侧聚合页）
   ├─ AboutForm / LogForm：产品说明与诊断记录
   ├─ RecoveryEngine
   │   ├─ 包状态探针：Get-AppxPackage OpenAI.Codex
@@ -63,6 +64,7 @@ WinForms GUI
 - 程序入口与恢复引擎：`src\CodexRecoveryCenter.cs`
 - 统一修复外壳与模块：`src\WindowsRepairCenter.cs`（概览、Codex、蓝牙、鼠标语音、弹窗审计、网络、存储、资源、启动项和小龙虾）
 - 小龙虾控制适配：`src\OpenClawController.cs`
+- 备份状态模块：`src\BackupMonitorModule.cs`（只读读取本地 `sync-state.json`）
 - 资源守卫与计划任务：`src\ResourceGuard.cs`
 - 主界面与日志窗口：`src\MainForm.cs`
 - 设置、主题、关于与更新：`src\ProductExperience.cs`

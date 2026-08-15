@@ -32,7 +32,7 @@ namespace CodexRecoveryCenter
             showMemory = memoryAction;
             writeLog = logAction;
 
-            Text = "快捷工具 · Windows 修复中心";
+            Text = "快捷工具 · " + ProductInfo.ProductName;
             ClientSize = new Size(780, 650);
             MinimumSize = new Size(700, 560);
             StartPosition = FormStartPosition.CenterParent;

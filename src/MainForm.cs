@@ -41,7 +41,7 @@ namespace CodexRecoveryCenter
         public MainForm()
         {
             appSettings = SettingsStore.Load();
-            Text = "Windows 修复中心 · 兼容视图";
+            Text = ProductInfo.ProductName + " · 兼容视图";
             ClientSize = new Size(800, 570);
             MinimumSize = new Size(700, 520);
             StartPosition = FormStartPosition.CenterScreen;
@@ -73,7 +73,7 @@ namespace CodexRecoveryCenter
             };
             root.Controls.Add(header, 0, 0);
 
-            var appTitle = MakeLabel("Windows 修复中心", 0, 1, 16F, FontStyle.Bold, "title");
+            var appTitle = MakeLabel(ProductInfo.ProductName, 0, 1, 16F, FontStyle.Bold, "title");
             var version = MakeLabel(
                 "v" + ProductInfo.Version, 0, 13, 8.5F, FontStyle.Regular, "muted");
             settingsButton = MakeButton("设置", 0, 4, 72, 36, ButtonVisualRole.Ghost);
@@ -618,7 +618,7 @@ namespace CodexRecoveryCenter
         public MemoryReliefForm(VisualTheme theme, Action<string> log, ColorMode colorMode = ColorMode.Light)
         {
             writeLog = log;
-            Text = "释放内存 · Windows 修复中心";
+            Text = "释放内存 · " + ProductInfo.ProductName;
             ClientSize = new Size(640, 496);
             MinimumSize = new Size(580, 440);
             StartPosition = FormStartPosition.CenterParent;
@@ -764,7 +764,7 @@ namespace CodexRecoveryCenter
     {
         public LogForm(VisualTheme theme, string content, string path, ColorMode colorMode = ColorMode.Light)
         {
-            Text = "处理记录 · Windows 修复中心";
+            Text = "处理记录 · " + ProductInfo.ProductName;
             ClientSize = new Size(650, 430);
             MinimumSize = new Size(560, 360);
             StartPosition = FormStartPosition.CenterParent;

@@ -80,7 +80,7 @@ $manifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $manifestPath -En
 if ($InstallDesktopShortcut) {
     $desktop = [Environment]::GetFolderPath('Desktop')
     $shortcutName = [Text.Encoding]::UTF8.GetString(
-        [Convert]::FromBase64String('V2luZG93cyDkv67lpI3kuK3lv4MubG5r')
+        [Convert]::FromBase64String('5Liq5Lq66IGa5ZCI5bel5YW3566xLmxuaw==')
     )
     $shortcutPath = Join-Path $desktop $shortcutName
     $shell = New-Object -ComObject WScript.Shell
@@ -94,12 +94,13 @@ if ($InstallDesktopShortcut) {
     $shortcut.Arguments = '"' + $launcher + '"'
     $shortcut.WorkingDirectory = $projectRoot
     $shortcut.IconLocation = "$releaseForShortcut,0"
-    $shortcut.Description = 'Windows local diagnosis, safe repair and verification'
+    $shortcut.Description = 'Personal local toolbox with one-click tools and safe repair'
     $shortcut.Save()
 
     $legacyBackup = Join-Path $env:LOCALAPPDATA ("WindowsRepairCenter\backups\desktop-shortcuts\" + (Get-Date -Format 'yyyyMMdd-HHmmss'))
     New-Item -ItemType Directory -Path $legacyBackup -Force | Out-Null
     $legacyNames = @(
+        [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('V2luZG93cyDkv67lpI3kuK3lv4MubG5r')),
         [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('Q29kZXgg5oGi5aSN5Lit5b+DLmxuaw==')),
         [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('5LiA6ZSu5L+u5aSN6JOd54mZ6Z+z6aKRLmxuaw==')),
         [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('6byg5qCH6K+t6Z+z6L6T5YWlLeWQr+WKqOS/ruWkjS5sbms='))
