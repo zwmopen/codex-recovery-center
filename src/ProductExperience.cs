@@ -15,7 +15,7 @@ namespace CodexRecoveryCenter
 {
     internal static class ProductInfo
     {
-        public const string Version = "2.7.2";
+        public const string Version = "2.8.0";
         public const string RepositoryUrl = "https://github.com/zwmopen/codex-recovery-center";
         public const string ReleasesUrl = RepositoryUrl + "/releases";
         public const string UpdateManifestUrl =
@@ -26,6 +26,12 @@ namespace CodexRecoveryCenter
     {
         Neumorphic,
         RestrainedGlass
+    }
+
+    internal enum ColorMode
+    {
+        Light,
+        Dark
     }
 
     internal enum ButtonVisualRole
@@ -39,6 +45,7 @@ namespace CodexRecoveryCenter
     internal sealed class AppSettings
     {
         public VisualTheme Theme = VisualTheme.Neumorphic;
+        public ColorMode ColorMode = ColorMode.Light;
         public bool AutoCheckUpdates = true;
         public bool AutoDownloadUpdates = true;
         public bool ResourceGuardEnabled;
@@ -48,6 +55,7 @@ namespace CodexRecoveryCenter
             return new AppSettings
             {
                 Theme = Theme,
+                ColorMode = ColorMode,
                 AutoCheckUpdates = AutoCheckUpdates,
                 AutoDownloadUpdates = AutoDownloadUpdates,
                 ResourceGuardEnabled = ResourceGuardEnabled
@@ -99,6 +107,12 @@ namespace CodexRecoveryCenter
                         if (Enum.TryParse(value, true, out parsed))
                             settings.Theme = parsed;
                     }
+                    else if (key.Equals("ColorMode", StringComparison.OrdinalIgnoreCase))
+                    {
+                        ColorMode parsed;
+                        if (Enum.TryParse(value, true, out parsed))
+                            settings.ColorMode = parsed;
+                    }
                     else if (key.Equals("ResourceGuardEnabled", StringComparison.OrdinalIgnoreCase))
                     {
                         bool parsed;
@@ -119,6 +133,7 @@ namespace CodexRecoveryCenter
             string[] lines =
             {
                 "Theme=" + settings.Theme,
+                "ColorMode=" + settings.ColorMode,
                 "ResourceGuardEnabled=" + settings.ResourceGuardEnabled
             };
             File.WriteAllLines(SettingsPath, lines, Encoding.UTF8);
@@ -148,6 +163,55 @@ namespace CodexRecoveryCenter
     {
         public static ThemePalette Get(VisualTheme theme)
         {
+            return Get(theme, ColorMode.Light);
+        }
+
+        public static ThemePalette Get(VisualTheme theme, ColorMode colorMode)
+        {
+            if (colorMode == ColorMode.Dark)
+            {
+                if (theme == VisualTheme.RestrainedGlass)
+                {
+                    return new ThemePalette
+                    {
+                        Canvas = Color.FromArgb(20, 27, 35),
+                        WindowTop = Color.FromArgb(31, 42, 53),
+                        WindowBottom = Color.FromArgb(17, 23, 30),
+                        Card = Color.FromArgb(29, 39, 49),
+                        CardBorder = Color.FromArgb(66, 83, 100),
+                        Highlight = Color.FromArgb(42, 255, 255, 255),
+                        Shadow = Color.FromArgb(60, 0, 0, 0),
+                        Ink = Color.FromArgb(232, 240, 247),
+                        Muted = Color.FromArgb(157, 174, 189),
+                        Accent = Color.FromArgb(78, 161, 255),
+                        AccentHover = Color.FromArgb(105, 180, 255),
+                        Secondary = Color.FromArgb(48, 61, 74),
+                        SecondaryHover = Color.FromArgb(61, 77, 92),
+                        Warning = Color.FromArgb(255, 194, 105),
+                        Danger = Color.FromArgb(255, 124, 113)
+                    };
+                }
+
+                return new ThemePalette
+                {
+                    Canvas = Color.FromArgb(24, 31, 40),
+                    WindowTop = Color.FromArgb(30, 39, 49),
+                    WindowBottom = Color.FromArgb(16, 22, 29),
+                    Card = Color.FromArgb(29, 39, 50),
+                    CardBorder = Color.FromArgb(58, 74, 91),
+                    Highlight = Color.FromArgb(30, 255, 255, 255),
+                    Shadow = Color.FromArgb(70, 0, 0, 0),
+                    Ink = Color.FromArgb(234, 241, 247),
+                    Muted = Color.FromArgb(153, 171, 188),
+                    Accent = Color.FromArgb(74, 157, 255),
+                    AccentHover = Color.FromArgb(101, 177, 255),
+                    Secondary = Color.FromArgb(45, 58, 71),
+                    SecondaryHover = Color.FromArgb(57, 73, 88),
+                    Warning = Color.FromArgb(255, 190, 102),
+                    Danger = Color.FromArgb(255, 122, 112)
+                };
+            }
+
             if (theme == VisualTheme.RestrainedGlass)
             {
                 return new ThemePalette
@@ -190,14 +254,14 @@ namespace CodexRecoveryCenter
             };
         }
 
-        public static void Apply(Control root, VisualTheme theme)
+        public static void Apply(Control root, VisualTheme theme, ColorMode colorMode = ColorMode.Light)
         {
-            ThemePalette palette = Get(theme);
-            ApplyRecursive(root, palette);
+            ThemePalette palette = Get(theme, colorMode);
+            ApplyRecursive(root, palette, theme, colorMode);
             root.Invalidate(true);
         }
 
-        private static void ApplyRecursive(Control control, ThemePalette palette)
+        private static void ApplyRecursive(Control control, ThemePalette palette, VisualTheme theme, ColorMode colorMode)
         {
             Form form = control as Form;
             if (form != null)
@@ -205,8 +269,10 @@ namespace CodexRecoveryCenter
 
             ThemedForm themedForm = control as ThemedForm;
             if (themedForm != null)
-                themedForm.VisualTheme = palette.Accent.R == 47
-                    ? VisualTheme.RestrainedGlass : VisualTheme.Neumorphic;
+            {
+                themedForm.VisualTheme = theme;
+                themedForm.ColorMode = colorMode;
+            }
 
             SoftPanel panel = control as SoftPanel;
             if (panel != null)
@@ -294,17 +360,19 @@ namespace CodexRecoveryCenter
             }
 
             foreach (Control child in control.Controls)
-                ApplyRecursive(child, palette);
+                ApplyRecursive(child, palette, theme, colorMode);
         }
     }
 
     internal class ThemedForm : Form
     {
         public VisualTheme VisualTheme { get; set; }
+        public ColorMode ColorMode { get; set; }
 
         public ThemedForm()
         {
             VisualTheme = VisualTheme.Neumorphic;
+            ColorMode = ColorMode.Light;
             DoubleBuffered = true;
             try
             {
@@ -316,16 +384,17 @@ namespace CodexRecoveryCenter
 
         protected override void OnPaintBackground(PaintEventArgs e)
         {
-            ThemePalette palette = ThemeManager.Get(VisualTheme);
+            ThemePalette palette = ThemeManager.Get(VisualTheme, ColorMode);
             using (var brush = new LinearGradientBrush(
                 ClientRectangle, palette.WindowTop, palette.WindowBottom, 90F))
                 e.Graphics.FillRectangle(brush, ClientRectangle);
 
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            int decorationAlpha = ColorMode == ColorMode.Dark ? 14 : 28;
             using (var blue = new SolidBrush(Color.FromArgb(
-                VisualTheme == VisualTheme.Neumorphic ? 28 : 20, 48, 126, 255)))
-            using (var white = new SolidBrush(Color.FromArgb(42, 255, 255, 255)))
-            using (var cyan = new SolidBrush(Color.FromArgb(18, 65, 213, 207)))
+                VisualTheme == VisualTheme.Neumorphic ? decorationAlpha : Math.Max(10, decorationAlpha - 8), 48, 126, 255)))
+            using (var white = new SolidBrush(Color.FromArgb(ColorMode == ColorMode.Dark ? 12 : 42, 255, 255, 255)))
+            using (var cyan = new SolidBrush(Color.FromArgb(ColorMode == ColorMode.Dark ? 10 : 18, 65, 213, 207)))
             {
                 e.Graphics.FillEllipse(blue, new Rectangle(Width - 260, -130, 330, 270));
                 e.Graphics.FillEllipse(white, new Rectangle(-150, Height - 230, 300, 270));
@@ -368,6 +437,7 @@ namespace CodexRecoveryCenter
                 "downloadDigestPresent=" + (!String.IsNullOrWhiteSpace(latest.Digest)),
                 "downloadVerified=" + File.Exists(downloaded),
                 "theme=" + settings.Theme,
+                "colorMode=" + settings.ColorMode,
                 "autoCheckUpdates=" + settings.AutoCheckUpdates,
                 "autoDownloadUpdates=" + settings.AutoDownloadUpdates
             });
@@ -498,6 +568,7 @@ namespace CodexRecoveryCenter
     {
         private readonly SoftButton neoThemeButton;
         private readonly SoftButton glassThemeButton;
+        private readonly SoftButton modeButton;
         private readonly Label hint;
         private readonly SoftButton saveButton;
         private readonly SoftButton checkButton;
@@ -506,15 +577,17 @@ namespace CodexRecoveryCenter
         private readonly Action<AppSettings> applySettings;
         private readonly Func<Task> checkUpdates;
 
-        public SettingsForm(AppSettings current, Action<AppSettings> apply, Func<Task> check)
+        public SettingsForm(AppSettings current, Action<AppSettings> apply, Func<Task> check,
+            ColorMode colorMode = ColorMode.Light)
         {
             working = current.Clone();
+            working.ColorMode = colorMode;
             applySettings = apply;
             checkUpdates = check;
 
             Text = "设置 · Windows 修复中心";
-            ClientSize = new Size(600, 555);
-            MinimumSize = new Size(560, 535);
+            ClientSize = new Size(600, 675);
+            MinimumSize = new Size(560, 645);
             StartPosition = FormStartPosition.CenterParent;
             Font = new Font("Microsoft YaHei UI", 10F);
             AutoScaleMode = AutoScaleMode.Dpi;
@@ -536,7 +609,17 @@ namespace CodexRecoveryCenter
             themeCard.Controls.Add(neoThemeButton);
             themeCard.Controls.Add(glassThemeButton);
 
-            var guardCard = CardAt(30, 222, 540, 104);
+            var modeCard = CardAt(30, 222, 540, 104);
+            modeCard.Controls.Add(LabelAt("显示模式", 20, 14, 11F, FontStyle.Bold, null));
+            modeCard.Controls.Add(LabelAt("切换界面明暗，不改变检查和修复逻辑。", 20, 45, 9F,
+                FontStyle.Regular, "muted"));
+            modeButton = ButtonAt(working.ColorMode == ColorMode.Dark ? "深色模式" : "浅色模式",
+                398, 51, 122, 36, working.ColorMode == ColorMode.Dark
+                    ? ButtonVisualRole.Primary : ButtonVisualRole.Secondary);
+            modeButton.Click += (s, e) => ToggleColorMode();
+            modeCard.Controls.Add(modeButton);
+
+            var guardCard = CardAt(30, 340, 540, 104);
             guardCard.Controls.Add(LabelAt("资源守卫", 20, 14, 11F, FontStyle.Bold, null));
             guardCard.Controls.Add(LabelAt("每 2 分钟拦截失控进程与高风险孤儿服务，不关闭正常任务。",
                 20, 45, 9F, FontStyle.Regular, "muted"));
@@ -546,18 +629,18 @@ namespace CodexRecoveryCenter
             guardButton.Click += (s, e) => ToggleResourceGuard();
             guardCard.Controls.Add(guardButton);
 
-            var updateCard = CardAt(30, 340, 540, 92);
+            var updateCard = CardAt(30, 458, 540, 92);
             updateCard.Controls.Add(LabelAt("软件更新", 20, 15, 11F, FontStyle.Bold, null));
             checkButton = ButtonAt("检查版本", 374, 43, 146, 36, ButtonVisualRole.Secondary);
             updateCard.Controls.Add(checkButton);
 
-            hint = LabelAt("设置保存在本机，不会同步到云端。", 32, 450, 9F,
+            hint = LabelAt("设置保存在本机，不会同步到云端。", 32, 568, 9F,
                 FontStyle.Regular, "muted");
-            saveButton = ButtonAt("保存设置", 420, 478, 150, 42, ButtonVisualRole.Primary);
-            var cancelButton = ButtonAt("取消", 314, 478, 92, 42, ButtonVisualRole.Ghost);
+            saveButton = ButtonAt("保存设置", 420, 596, 150, 42, ButtonVisualRole.Primary);
+            var cancelButton = ButtonAt("取消", 314, 596, 92, 42, ButtonVisualRole.Ghost);
 
             Controls.AddRange(new Control[]
-                { title, themeCard, guardCard, updateCard, hint, saveButton, cancelButton });
+                { title, themeCard, modeCard, guardCard, updateCard, hint, saveButton, cancelButton });
 
             checkButton.Click += async (s, e) =>
             {
@@ -591,7 +674,7 @@ namespace CodexRecoveryCenter
             };
             cancelButton.Click += (s, e) => Close();
 
-            ThemeManager.Apply(this, working.Theme);
+            ThemeManager.Apply(this, working.Theme, working.ColorMode);
         }
 
         private void ToggleResourceGuard()
@@ -600,7 +683,17 @@ namespace CodexRecoveryCenter
             guardButton.Text = working.ResourceGuardEnabled ? "已开启" : "未开启";
             guardButton.VisualRole = working.ResourceGuardEnabled
                 ? ButtonVisualRole.Primary : ButtonVisualRole.Secondary;
-            ThemeManager.Apply(this, working.Theme);
+            ThemeManager.Apply(this, working.Theme, working.ColorMode);
+        }
+
+        private void ToggleColorMode()
+        {
+            working.ColorMode = working.ColorMode == ColorMode.Dark
+                ? ColorMode.Light : ColorMode.Dark;
+            modeButton.Text = working.ColorMode == ColorMode.Dark ? "深色模式" : "浅色模式";
+            modeButton.VisualRole = working.ColorMode == ColorMode.Dark
+                ? ButtonVisualRole.Primary : ButtonVisualRole.Secondary;
+            ThemeManager.Apply(this, working.Theme, working.ColorMode);
         }
 
         private void SelectTheme(VisualTheme theme)
@@ -610,7 +703,7 @@ namespace CodexRecoveryCenter
                 ? ButtonVisualRole.Primary : ButtonVisualRole.Secondary;
             glassThemeButton.VisualRole = theme == VisualTheme.RestrainedGlass
                 ? ButtonVisualRole.Primary : ButtonVisualRole.Secondary;
-            ThemeManager.Apply(this, working.Theme);
+            ThemeManager.Apply(this, working.Theme, working.ColorMode);
         }
 
         private SoftPanel CardAt(int x, int y, int width, int height)
@@ -653,7 +746,7 @@ namespace CodexRecoveryCenter
 
     internal sealed class AboutForm : ThemedForm
     {
-        public AboutForm(VisualTheme theme)
+        public AboutForm(VisualTheme theme, ColorMode colorMode = ColorMode.Light)
         {
             Text = "关于 · Windows 修复中心";
             ClientSize = new Size(620, 535);
@@ -700,7 +793,7 @@ namespace CodexRecoveryCenter
 
             Controls.AddRange(new Control[]
                 { title, version, intro, idea, privacy, repoButton, releaseButton, closeButton });
-            ThemeManager.Apply(this, theme);
+            ThemeManager.Apply(this, theme, colorMode);
         }
 
         private Label NewLabel(string text, int x, int y, float size, FontStyle style, string role)

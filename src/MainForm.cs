@@ -231,23 +231,23 @@ namespace CodexRecoveryCenter
                 Process.Start("ms-windows-store://pdp/?ProductId=" + RecoveryEngine.StoreProductId);
             memoryButton.Click += async (s, e) =>
             {
-                using (var relief = new MemoryReliefForm(appSettings.Theme, WriteLog))
+                using (var relief = new MemoryReliefForm(appSettings.Theme, WriteLog, appSettings.ColorMode))
                     relief.ShowDialog(this);
                 await CheckAsync();
             };
             settingsButton.Click += (s, e) => OpenSettings();
             aboutButton.Click += (s, e) =>
             {
-                using (var about = new AboutForm(appSettings.Theme))
+                using (var about = new AboutForm(appSettings.Theme, appSettings.ColorMode))
                     about.ShowDialog(this);
             };
             logButton.Click += (s, e) =>
             {
-                using (var logs = new LogForm(appSettings.Theme, logBuffer.ToString(), sessionLog))
+                using (var logs = new LogForm(appSettings.Theme, logBuffer.ToString(), sessionLog, appSettings.ColorMode))
                     logs.ShowDialog(this);
             };
 
-            ThemeManager.Apply(this, appSettings.Theme);
+            ThemeManager.Apply(this, appSettings.Theme, appSettings.ColorMode);
             Shown += async (s, e) =>
             {
                 await CheckAsync();
@@ -258,7 +258,7 @@ namespace CodexRecoveryCenter
 
         private ThemePalette CurrentPalette
         {
-            get { return ThemeManager.Get(appSettings.Theme); }
+            get { return ThemeManager.Get(appSettings.Theme, appSettings.ColorMode); }
         }
 
         private Label MakeLabel(string text, int x, int y, float size,
@@ -302,7 +302,7 @@ namespace CodexRecoveryCenter
         private void OpenSettings()
         {
             using (var settings = new SettingsForm(
-                appSettings, ApplySettings, () => CheckUpdatesAsync(true)))
+                appSettings, ApplySettings, () => CheckUpdatesAsync(true), appSettings.ColorMode))
                 settings.ShowDialog(this);
         }
 
@@ -330,7 +330,7 @@ namespace CodexRecoveryCenter
         private void ApplySettings(AppSettings updated)
         {
             appSettings = updated;
-            ThemeManager.Apply(this, appSettings.Theme);
+            ThemeManager.Apply(this, appSettings.Theme, appSettings.ColorMode);
             statusDot.ForeColor = DotColor(lastLevel);
             WriteLog("设置已保存；主题：" +
                 (appSettings.Theme == VisualTheme.Neumorphic ? "拟态悬浮" : "克制玻璃") +
@@ -615,7 +615,7 @@ namespace CodexRecoveryCenter
         private readonly Action<string> writeLog;
         private List<ProcessGroup> groups = new List<ProcessGroup>();
 
-        public MemoryReliefForm(VisualTheme theme, Action<string> log)
+        public MemoryReliefForm(VisualTheme theme, Action<string> log, ColorMode colorMode = ColorMode.Light)
         {
             writeLog = log;
             Text = "释放内存 · Windows 修复中心";
@@ -669,7 +669,7 @@ namespace CodexRecoveryCenter
                 IntegralHeight = false,
                 Font = new Font("Microsoft YaHei UI", 9.5F)
             };
-            ThemePalette palette = ThemeManager.Get(theme);
+            ThemePalette palette = ThemeManager.Get(theme, colorMode);
             list.BackColor = palette.Card;
             list.ForeColor = palette.Ink;
             card.Controls.Add(list);
@@ -708,7 +708,7 @@ namespace CodexRecoveryCenter
 
             Controls.AddRange(new Control[]
                 { title, summary, hint, card, refreshButton, cancelButton, closeSelectedButton });
-            ThemeManager.Apply(this, theme);
+            ThemeManager.Apply(this, theme, colorMode);
             Shown += (s, e) => LoadGroups();
         }
 
@@ -762,7 +762,7 @@ namespace CodexRecoveryCenter
 
     internal sealed class LogForm : ThemedForm
     {
-        public LogForm(VisualTheme theme, string content, string path)
+        public LogForm(VisualTheme theme, string content, string path, ColorMode colorMode = ColorMode.Light)
         {
             Text = "处理记录 · Windows 修复中心";
             ClientSize = new Size(650, 430);
@@ -818,7 +818,7 @@ namespace CodexRecoveryCenter
             };
             close.Click += (s, e) => Close();
             Controls.AddRange(new Control[] { title, hint, card, close });
-            ThemeManager.Apply(this, theme);
+            ThemeManager.Apply(this, theme, colorMode);
         }
     }
 }

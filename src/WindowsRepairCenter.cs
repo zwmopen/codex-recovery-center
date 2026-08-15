@@ -1310,11 +1310,13 @@ namespace CodexRecoveryCenter
         private readonly Label moduleStatus;
         private readonly TextBox evidenceBox;
         private readonly SoftButton scanButton;
+        private readonly SoftButton quickToolsButton;
         private readonly SoftButton settingsButton;
-        private readonly SoftButton aboutButton;
+        private readonly SoftButton moreButton;
         private readonly SoftButton repairButton;
-        private readonly SoftButton reportButton;
-        private readonly SoftButton recordButton;
+        private readonly ContextMenuStrip moreMenu;
+        private readonly ToolStripMenuItem reportMenuItem;
+        private readonly ToolStripMenuItem recordMenuItem;
         private readonly Panel openClawActions;
         private readonly SoftButton openClawStartButton;
         private readonly SoftButton openClawRestartButton;
@@ -1359,16 +1361,18 @@ namespace CodexRecoveryCenter
             Label title = MakeLabel("Windows 修复中心", 0, 0, 17F, FontStyle.Bold, "title");
             Label subtitle = MakeLabel("本机诊断 · 安全修复 · 可验证回滚", 2, 31, 8.5F, FontStyle.Regular, "muted");
             settingsButton = MakeButton("设置", 0, 4, 72, 40, ButtonVisualRole.Ghost);
-            aboutButton = MakeButton("关于", 0, 4, 72, 40, ButtonVisualRole.Ghost);
+            moreButton = MakeButton("更多", 0, 4, 72, 40, ButtonVisualRole.Ghost);
+            quickToolsButton = MakeButton("快捷工具", 0, 4, 92, 40, ButtonVisualRole.Secondary);
             scanButton = MakeButton("开始检查", 0, 4, 122, 40, ButtonVisualRole.Primary);
             scanButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            settingsButton.Anchor = aboutButton.Anchor = scanButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            header.Controls.AddRange(new Control[] { title, subtitle, settingsButton, aboutButton, scanButton });
+            settingsButton.Anchor = moreButton.Anchor = quickToolsButton.Anchor = scanButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            header.Controls.AddRange(new Control[] { title, subtitle, quickToolsButton, settingsButton, moreButton, scanButton });
             header.Layout += (s, e) =>
             {
                 scanButton.Left = header.ClientSize.Width - scanButton.Width;
-                aboutButton.Left = scanButton.Left - aboutButton.Width - 8;
-                settingsButton.Left = aboutButton.Left - settingsButton.Width - 6;
+                moreButton.Left = scanButton.Left - moreButton.Width - 8;
+                settingsButton.Left = moreButton.Left - settingsButton.Width - 6;
+                quickToolsButton.Left = settingsButton.Left - quickToolsButton.Width - 6;
             };
             root.Controls.Add(header, 0, 0);
 
@@ -1392,8 +1396,6 @@ namespace CodexRecoveryCenter
             progress = new ProgressBar { Location = new Point(0, 102), Height = 5, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right, Visible = false, Style = ProgressBarStyle.Marquee, MarqueeAnimationSpeed = 22 };
             evidenceBox = new TextBox { Location = new Point(0, 126), Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, BorderStyle = BorderStyle.None, BackColor = Color.FromArgb(226, 235, 241), Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right, Font = new Font("Consolas", 9F), TabStop = false };
             repairButton = MakeButton("执行建议修复", 0, 0, 150, 40, ButtonVisualRole.Primary); repairButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
-            reportButton = MakeButton("保存诊断报告", 162, 0, 150, 40, ButtonVisualRole.Secondary); reportButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
-            recordButton = MakeButton("查看处理记录", 324, 0, 150, 40, ButtonVisualRole.Ghost); recordButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             openClawActions = new Panel { Location = new Point(0, 0), Height = 82, BackColor = Color.Transparent, Visible = false, Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right };
             openClawStartButton = MakeButton("启动小龙虾", 0, 0, 132, 36, ButtonVisualRole.Secondary);
             openClawRestartButton = MakeButton("重启网关", 140, 0, 132, 36, ButtonVisualRole.Secondary);
@@ -1403,21 +1405,20 @@ namespace CodexRecoveryCenter
             openClawSwitchButton = MakeButton("切换并重启", 350, 42, 132, 36, ButtonVisualRole.Primary);
             openClawRefreshButton = MakeButton("刷新模型", 490, 42, 100, 36, ButtonVisualRole.Ghost);
             openClawActions.Controls.AddRange(new Control[] { openClawStartButton, openClawRestartButton, openClawDashboardButton, openClawModelHint, openClawModelsBox, openClawSwitchButton, openClawRefreshButton });
-            content.Controls.AddRange(new Control[] { moduleTitle, moduleCaption, moduleStatus, progress, evidenceBox, openClawActions, repairButton, reportButton, recordButton });
+            content.Controls.AddRange(new Control[] { moduleTitle, moduleCaption, moduleStatus, progress, evidenceBox, openClawActions, repairButton });
             content.Layout += (s, e) =>
             {
                 progress.Width = Math.Max(120, content.ClientSize.Width);
                 int actionsHeight = openClawActions.Visible ? 100 : 0;
+                int repairHeight = repairButton.Visible ? 70 : 24;
                 evidenceBox.Width = Math.Max(200, content.ClientSize.Width);
-                evidenceBox.Height = Math.Max(100, content.ClientSize.Height - 180 - actionsHeight);
+                evidenceBox.Height = Math.Max(100, content.ClientSize.Height - 126 - repairHeight - actionsHeight);
                 openClawActions.Width = Math.Max(420, content.ClientSize.Width);
                 openClawActions.Top = content.ClientSize.Height - 132;
                 openClawModelsBox.Width = Math.Max(180, openClawActions.ClientSize.Width - 390);
                 openClawSwitchButton.Left = openClawModelsBox.Right + 8;
                 openClawRefreshButton.Left = openClawSwitchButton.Right + 8;
                 repairButton.Top = content.ClientSize.Height - repairButton.Height;
-                reportButton.Top = repairButton.Top;
-                recordButton.Top = repairButton.Top;
             };
             body.Controls.Add(content, 1, 0);
 
@@ -1427,17 +1428,36 @@ namespace CodexRecoveryCenter
 
             BuildModuleButtons();
             scanButton.Click += async (s, e) => await ScanAllAsync();
+            quickToolsButton.Click += (s, e) => OpenQuickTools();
             settingsButton.Click += (s, e) => OpenSettings();
-            aboutButton.Click += (s, e) =>
+            moreMenu = new ContextMenuStrip
             {
-                using (var about = new AboutForm(appSettings.Theme)) about.ShowDialog(this);
+                Font = new Font("Microsoft YaHei UI", 9F),
+                ShowImageMargin = false,
+                AutoSize = true
+            };
+            var aboutMenuItem = new ToolStripMenuItem("关于 Windows 修复中心");
+            aboutMenuItem.Click += (s, e) =>
+            {
+                using (var about = new AboutForm(appSettings.Theme, appSettings.ColorMode)) about.ShowDialog(this);
+            };
+            reportMenuItem = new ToolStripMenuItem("保存诊断报告");
+            reportMenuItem.Click += (s, e) => SaveReport();
+            recordMenuItem = new ToolStripMenuItem("查看处理记录");
+            recordMenuItem.Click += (s, e) => ShowSessionLog();
+            moreMenu.Items.Add(aboutMenuItem);
+            moreMenu.Items.Add(new ToolStripSeparator());
+            moreMenu.Items.Add(reportMenuItem);
+            moreMenu.Items.Add(recordMenuItem);
+            moreButton.Click += (s, e) =>
+            {
+                RefreshMoreMenuState();
+                moreMenu.Show(moreButton, new Point(0, moreButton.Height));
             };
             repairButton.Click += async (s, e) => await RepairSelectedAsync();
-            reportButton.Click += (s, e) => SaveReport();
-            recordButton.Click += (s, e) => ShowSessionLog();
             openClawStartButton.Click += async (s, e) => await RunOpenClawActionAsync("Start", null, "正在启动小龙虾…");
             openClawRestartButton.Click += async (s, e) => await RunOpenClawActionAsync("Restart", null, "正在重启小龙虾网关…");
-            openClawDashboardButton.Click += async (s, e) => await RunOpenClawActionAsync("Dashboard", null, "正在打开小龙虾内置网页…");
+            openClawDashboardButton.Click += async (s, e) => await RunOpenClawActionAsync("Dashboard", null, "正在打开小龙虾控制网页…");
             openClawSwitchButton.Click += async (s, e) =>
             {
                 string model = Convert.ToString(openClawModelsBox.SelectedItem);
@@ -1451,14 +1471,37 @@ namespace CodexRecoveryCenter
             openClawRefreshButton.Click += async (s, e) => await RefreshOpenClawModelsAsync();
             Load += async (s, e) => await ScanAllAsync();
             Shown += (s, e) => BeginInvoke((Action)(() => CenterToScreen()));
-            ThemeManager.Apply(this, appSettings.Theme);
+            ThemeManager.Apply(this, appSettings.Theme, appSettings.ColorMode);
             SelectModule(selectedModule);
         }
 
         private void OpenSettings()
         {
-            using (var settings = new SettingsForm(appSettings, ApplySettings, CheckUpdatesAsync))
+            using (var settings = new SettingsForm(appSettings, ApplySettings, CheckUpdatesAsync, appSettings.ColorMode))
                 settings.ShowDialog(this);
+        }
+
+        private void OpenQuickTools()
+        {
+            using (var tools = new QuickToolsForm(
+                appSettings.Theme,
+                appSettings.ColorMode,
+                ScanAllAsync,
+                id =>
+                {
+                    IRepairModule target = modules.FirstOrDefault(module =>
+                        module.Id.Equals(id, StringComparison.OrdinalIgnoreCase));
+                    if (target != null) SelectModule(target);
+                },
+                () =>
+                {
+                    using (var relief = new MemoryReliefForm(appSettings.Theme, WriteLog, appSettings.ColorMode))
+                        relief.ShowDialog(this);
+                },
+                WriteLog))
+            {
+                tools.ShowDialog(this);
+            }
         }
 
         private async Task CheckUpdatesAsync()
@@ -1484,7 +1527,7 @@ namespace CodexRecoveryCenter
         private void ApplySettings(AppSettings updated)
         {
             appSettings = updated;
-            ThemeManager.Apply(this, appSettings.Theme);
+            ThemeManager.Apply(this, appSettings.Theme, appSettings.ColorMode);
         }
 
         private void BuildModuleButtons()
@@ -1513,8 +1556,6 @@ namespace CodexRecoveryCenter
         {
             selectedModule = module;
             bool isOpenClaw = module.Id == "openclaw";
-            openClawActions.Visible = isOpenClaw;
-            repairButton.Visible = !isOpenClaw;
             foreach (KeyValuePair<string, SoftButton> entry in moduleButtons)
                 entry.Value.VisualRole = entry.Key == module.Id ? ButtonVisualRole.Secondary : ButtonVisualRole.Ghost;
             if (module.Id == overviewModule.Id)
@@ -1624,6 +1665,7 @@ namespace CodexRecoveryCenter
                 busy = false;
                 scanButton.Enabled = true;
                 progress.Visible = false;
+                UpdateActionVisibility();
                 openClawStartButton.Enabled = true;
                 openClawRestartButton.Enabled = true;
                 openClawDashboardButton.Enabled = true;
@@ -1636,6 +1678,7 @@ namespace CodexRecoveryCenter
         {
             if (busy) return;
             busy = true; scanButton.Enabled = false; repairButton.Enabled = false; progress.Visible = true;
+            scanButton.Text = "检查中…";
             healthLabel.Text = "正在检查…";
             healthDetail.Text = "正在并行读取 " + modules.Count + " 个模块；请稍候。";
             findings.Clear();
@@ -1658,9 +1701,9 @@ namespace CodexRecoveryCenter
             }
             finally
             {
-                busy = false; scanButton.Enabled = true; progress.Visible = false;
-                RepairFinding selected;
-                repairButton.Enabled = findings.TryGetValue(selectedModule.Id, out selected) && selected.CanRepair;
+                busy = false; scanButton.Enabled = true; progress.Visible = false; scanButton.Text = "重新检查";
+                UpdateActionVisibility();
+                RefreshMoreMenuState();
             }
         }
 
@@ -1688,7 +1731,8 @@ namespace CodexRecoveryCenter
             finally
             {
                 busy = false; scanButton.Enabled = true; progress.Visible = false;
-                if (findings.TryGetValue(selectedModule.Id, out current)) repairButton.Enabled = current.CanRepair;
+                UpdateActionVisibility();
+                RefreshMoreMenuState();
             }
         }
 
@@ -1701,7 +1745,8 @@ namespace CodexRecoveryCenter
             healthLabel.Text = review == 0 ? "电脑状态正常" : "发现 " + review + " 项需要查看";
             healthDetail.Text = normal + " 个模块正常；" + issue + " 个建议处理；" + confirmation + " 个需要人工确认。";
             healthLabel.Tag = issue == 0 && confirmation == 0 ? "accent" : "warning";
-            ThemeManager.Apply(this, SettingsStore.Load().Theme);
+                AppSettings currentSettings = SettingsStore.Load();
+                ThemeManager.Apply(this, currentSettings.Theme, currentSettings.ColorMode);
         }
 
         private void RenderFinding(RepairFinding finding)
@@ -1717,9 +1762,10 @@ namespace CodexRecoveryCenter
             builder.AppendLine(); builder.AppendLine("证据链：");
             foreach (string line in finding.Evidence) builder.AppendLine("  " + line);
             evidenceBox.Text = builder.ToString();
-            repairButton.Text = finding.CanRepair ? (String.IsNullOrWhiteSpace(finding.RepairLabel) ? "执行修复" : finding.RepairLabel) : "当前无需修复";
-            repairButton.Enabled = !busy && finding.CanRepair;
-            ThemeManager.Apply(this, SettingsStore.Load().Theme);
+            repairButton.Text = String.IsNullOrWhiteSpace(finding.RepairLabel) ? "执行修复" : finding.RepairLabel;
+            UpdateActionVisibility();
+            AppSettings currentSettings = SettingsStore.Load();
+            ThemeManager.Apply(this, currentSettings.Theme, currentSettings.ColorMode);
         }
 
         private void RenderPending(IRepairModule module, string message = null)
@@ -1731,9 +1777,9 @@ namespace CodexRecoveryCenter
             evidenceBox.Text = "当前模块还没有诊断结果。\r\n" +
                 (String.IsNullOrWhiteSpace(message) ? "点击“开始检查”后，这里会显示状态、风险和证据链。" : "检查完成后，这里会显示状态、风险和证据链。") +
                 "\r\n\r\n扫描过程只读，不会自动删除文件或隐藏窗口。";
-            repairButton.Text = "等待检查";
-            repairButton.Enabled = false;
-            ThemeManager.Apply(this, SettingsStore.Load().Theme);
+            UpdateActionVisibility();
+            AppSettings currentSettings = SettingsStore.Load();
+            ThemeManager.Apply(this, currentSettings.Theme, currentSettings.ColorMode);
         }
 
         private void RenderOverview()
@@ -1770,9 +1816,29 @@ namespace CodexRecoveryCenter
                 }
                 evidenceBox.Text = builder.ToString();
             }
-            repairButton.Text = "先选择具体模块";
-            repairButton.Enabled = false;
-            ThemeManager.Apply(this, SettingsStore.Load().Theme);
+            UpdateActionVisibility();
+            AppSettings currentSettings = SettingsStore.Load();
+            ThemeManager.Apply(this, currentSettings.Theme, currentSettings.ColorMode);
+        }
+
+        private void UpdateActionVisibility()
+        {
+            bool isOpenClaw = selectedModule != null && selectedModule.Id == "openclaw";
+            RepairFinding finding;
+            bool canRepair = !isOpenClaw && selectedModule != null &&
+                selectedModule.Id != overviewModule.Id &&
+                findings.TryGetValue(selectedModule.Id, out finding) && finding.CanRepair;
+            openClawActions.Visible = isOpenClaw && OpenClawController.IsAvailable;
+            repairButton.Visible = canRepair;
+            repairButton.Enabled = canRepair && !busy;
+        }
+
+        private void RefreshMoreMenuState()
+        {
+            if (reportMenuItem != null)
+                reportMenuItem.Enabled = findings.Count > 0 && !busy;
+            if (recordMenuItem != null)
+                recordMenuItem.Enabled = !busy;
         }
 
         private static RepairFinding DetectSafely(IRepairModule module)
@@ -1838,7 +1904,7 @@ namespace CodexRecoveryCenter
             string content = "";
             try { content = File.Exists(sessionLog) ? File.ReadAllText(sessionLog, Encoding.UTF8) : "本次还没有处理记录。"; }
             catch (Exception ex) { content = "读取记录失败：" + ex.Message; }
-            using (var log = new LogForm(appSettings.Theme, content, sessionLog))
+            using (var log = new LogForm(appSettings.Theme, content, sessionLog, appSettings.ColorMode))
                 log.ShowDialog(this);
         }
 

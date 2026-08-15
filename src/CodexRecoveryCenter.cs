@@ -1226,13 +1226,13 @@ namespace CodexRecoveryCenter
             settingsButton.Click += (s, e) => OpenSettings();
             aboutButton.Click += (s, e) =>
             {
-                using (var about = new AboutForm(appSettings.Theme))
+                using (var about = new AboutForm(appSettings.Theme, appSettings.ColorMode))
                     about.ShowDialog(this);
             };
 
             sessionLog = Path.Combine(RecoveryEngine.LogRoot,
                 "recovery-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".log");
-            ThemeManager.Apply(this, appSettings.Theme);
+            ThemeManager.Apply(this, appSettings.Theme, appSettings.ColorMode);
             Shown += async (s, e) =>
             {
                 await CheckAsync();
@@ -1279,20 +1279,20 @@ namespace CodexRecoveryCenter
 
         private ThemePalette CurrentPalette
         {
-            get { return ThemeManager.Get(appSettings.Theme); }
+            get { return ThemeManager.Get(appSettings.Theme, appSettings.ColorMode); }
         }
 
         private void OpenSettings()
         {
             using (var settings = new SettingsForm(appSettings, ApplySettings,
-                () => CheckUpdatesAsync(true)))
+                () => CheckUpdatesAsync(true), appSettings.ColorMode))
                 settings.ShowDialog(this);
         }
 
         private void ApplySettings(AppSettings updated)
         {
             appSettings = updated;
-            ThemeManager.Apply(this, appSettings.Theme);
+            ThemeManager.Apply(this, appSettings.Theme, appSettings.ColorMode);
             WriteLog("设置已保存；主题：" +
                 (appSettings.Theme == VisualTheme.Neumorphic ? "拟态悬浮" : "克制玻璃") + "。");
         }

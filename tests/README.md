@@ -1,5 +1,10 @@
 # 验收
 
+## 2.8.0 静态回归
+
+- `powershell -NoProfile -ExecutionPolicy Bypass -File tests\Test-InterfaceControls.ps1` 检查快捷工具入口、深色/浅色设置、更多菜单、真实扫描文案和按状态显示修复按钮。
+- `scripts\Build.ps1 -Configuration Release` 构建 x64 WinForms EXE；随后运行发布 EXE 的 `--repair-center-self-test`，确认内置诊断模块仍可用。
+
 ## 2.7.2 已通过
 
 - 当前运行中的旧版 EXE 会锁定通用发布文件；`Build.ps1 -InstallDesktopShortcut` 已真实复现该条件并返回 0，生成版本化 `Windows-Repair-Center-v2.7.2.exe`、暂存 `build\Windows-Repair-Center.pending.exe`，未强杀旧窗口。
