@@ -1,20 +1,40 @@
 ﻿{
     "project":  "windows-repair-center",
-    "version":  "2.10.0",
-    "source_commit":  "ab08ba4c5cca59ebe373349b72d668890088dfb3",
-    "build_date":  "2026-08-15",
+    "version":  "2.12.0",
+    "source_commit":  "uncommitted",
+    "build_date":  "2026-10-01",
     "platform":  "Windows x64 / .NET Framework WinForms",
+    "webview2_sdk":  "1.0.3650.58",
+    "webview2_runtime":  "Microsoft Edge WebView2 Runtime锛堟湰鏈哄凡瀹夎鏃朵娇鐢級",
     "artifacts":  [
                       {
-                          "file":  "Windows-Repair-Center-v2.10.0.exe",
-                          "sha256":  "76AAB169BB36D25902CAB6FBAA04FFA06218280F7C1B3D74DDE909AA3BB76634",
-                          "bytes":  229888
+                          "file":  "Windows-Repair-Center-v2.12.0.exe",
+                          "sha256":  "28C2782500CB000815BA6AB00BF0268B18720B897F23E89B9215684BB398566F",
+                          "bytes":  236544
                       }
                   ],
+    "runtime_files":  [
+                          {
+                              "file":  "Microsoft.Web.WebView2.Core.dll",
+                              "sha256":  "2B999D1775004E98B32F281F4518F3952DF650970748527EF5B54FA9979D6C9C",
+                              "bytes":  649800
+                          },
+                          {
+                              "file":  "Microsoft.Web.WebView2.WinForms.dll",
+                              "sha256":  "BBC50575B6A191FD433DF854227921937F256E91A81B47C697D95EA8ED027FF6",
+                              "bytes":  38984
+                          },
+                          {
+                              "file":  "WebView2Loader.dll",
+                              "sha256":  "8427B1FC58EC707813E5C0A51EB5D69397BB333250A7B891BE4D3B123F1E0F1C",
+                              "bytes":  160320
+                          }
+                      ],
     "known_limitations":  [
                               "Cannot patch third-party GPU or Codex application defects",
                               "Microsoft Store restaging depends on Windows App Installer and network availability",
                               "Memory relief force-closes the selected programs; unsaved work in them is lost",
-                              "Resource Guard is a machine-level safety net and does not replace clean process shutdown in each project"
+                              "Resource Guard is a machine-level safety net and does not replace clean process shutdown in each project",
+                              "Embedded web tools require the Microsoft Edge WebView2 Runtime and their local status service"
                           ]
 }

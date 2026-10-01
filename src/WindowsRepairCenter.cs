@@ -1265,7 +1265,7 @@ namespace CodexRecoveryCenter
                 Add(finding, "运行状态=" + (status.Running ? "运行中" : "未启动"));
                 Add(finding, "当前模型=" + status.Model);
                 Add(finding, "控制脚本=" + OpenClawController.ManagerPath);
-                Add(finding, "控制面板操作：启动、重启、模型切换、打开控制网页");
+            Add(finding, "控制面板操作：启动、重启、模型切换、进入内嵌控制网页");
                 if (status.Result != null && status.Result.ExitCode != 0)
                     Add(finding, "状态读取返回：" + OpenClawController.Describe(status.Result));
                 return finding;
@@ -1316,8 +1316,6 @@ namespace CodexRecoveryCenter
         private readonly ToolStripMenuItem reportMenuItem;
         private readonly ToolStripMenuItem recordMenuItem;
         private readonly Panel openClawActions;
-        private readonly Panel backupActions;
-        private readonly SoftButton backupDashboardButton;
         private readonly SoftButton openClawStartButton;
         private readonly SoftButton openClawRestartButton;
         private readonly SoftButton openClawDashboardButton;
@@ -1327,11 +1325,14 @@ namespace CodexRecoveryCenter
         private readonly Label openClawModelHint;
         private readonly ProgressBar progress;
         private readonly Panel embeddedPageHost;
+        private readonly EmbeddedBackupDashboard backupDashboardPage;
+        private readonly EmbeddedOpenClawDashboard openClawDashboardPage;
         private readonly string sessionLog;
         private readonly Dictionary<string, SoftButton> moduleButtons = new Dictionary<string, SoftButton>();
         private IRepairModule selectedModule;
         private AppSettings appSettings;
         private bool busy;
+        private int navigationVersion;
 
         public WindowsRepairCenterForm()
         {
@@ -1394,12 +1395,9 @@ namespace CodexRecoveryCenter
             evidenceBox = new TextBox { Location = new Point(0, 126), Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, BorderStyle = BorderStyle.None, BackColor = Color.FromArgb(226, 235, 241), Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right, Font = new Font("Consolas", 9F), TabStop = false };
             repairButton = MakeButton("执行建议修复", 0, 0, 150, 40, ButtonVisualRole.Primary); repairButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             openClawActions = new Panel { Location = new Point(0, 0), Height = 82, BackColor = Color.Transparent, Visible = false, Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right };
-            backupActions = new Panel { Location = new Point(0, 0), Height = 54, BackColor = Color.Transparent, Visible = false, Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right };
-            backupDashboardButton = MakeButton("打开详细监控台", 0, 0, 150, 36, ButtonVisualRole.Secondary);
-            backupActions.Controls.Add(backupDashboardButton);
             openClawStartButton = MakeButton("启动小龙虾", 0, 0, 132, 36, ButtonVisualRole.Secondary);
             openClawRestartButton = MakeButton("重启网关", 140, 0, 132, 36, ButtonVisualRole.Secondary);
-            openClawDashboardButton = MakeButton("打开控制网页", 280, 0, 150, 36, ButtonVisualRole.Ghost);
+            openClawDashboardButton = MakeButton("进入内嵌控制台", 280, 0, 150, 36, ButtonVisualRole.Ghost);
             openClawModelHint = MakeLabel("模型", 0, 47, 8.5F, FontStyle.Regular, "muted");
             openClawModelsBox = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Location = new Point(42, 43), Width = 300, Height = 34, Font = new Font("Microsoft YaHei UI", 9F), Anchor = AnchorStyles.Left | AnchorStyles.Right };
             openClawSwitchButton = MakeButton("切换并重启", 350, 42, 132, 36, ButtonVisualRole.Primary);
@@ -1412,19 +1410,29 @@ namespace CodexRecoveryCenter
                 Visible = false,
                 Padding = new Padding(0)
             };
-            content.Controls.AddRange(new Control[] { moduleTitle, moduleCaption, moduleStatus, progress, evidenceBox, openClawActions, backupActions, repairButton });
+            backupDashboardPage = new EmbeddedBackupDashboard
+            {
+                Dock = DockStyle.Fill,
+                Visible = false
+            };
+            openClawDashboardPage = new EmbeddedOpenClawDashboard
+            {
+                Dock = DockStyle.Fill,
+                Visible = false
+            };
+            content.Controls.AddRange(new Control[] { moduleTitle, moduleCaption, moduleStatus, progress, evidenceBox, openClawActions, repairButton });
             content.Controls.Add(embeddedPageHost);
+            embeddedPageHost.Controls.Add(backupDashboardPage);
+            embeddedPageHost.Controls.Add(openClawDashboardPage);
             content.Layout += (s, e) =>
             {
                 progress.Width = Math.Max(120, content.ClientSize.Width);
-                int actionsHeight = openClawActions.Visible || backupActions.Visible ? 100 : 0;
+                int actionsHeight = openClawActions.Visible ? 100 : 0;
                 int repairHeight = repairButton.Visible ? 70 : 24;
                 evidenceBox.Width = Math.Max(200, content.ClientSize.Width);
                 evidenceBox.Height = Math.Max(100, content.ClientSize.Height - 126 - repairHeight - actionsHeight);
                 openClawActions.Width = Math.Max(420, content.ClientSize.Width);
                 openClawActions.Top = content.ClientSize.Height - 132;
-                backupActions.Width = Math.Max(240, content.ClientSize.Width);
-                backupActions.Top = content.ClientSize.Height - 92;
                 openClawModelsBox.Width = Math.Max(180, openClawActions.ClientSize.Width - 390);
                 openClawSwitchButton.Left = openClawModelsBox.Right + 8;
                 openClawRefreshButton.Left = openClawSwitchButton.Right + 8;
@@ -1463,10 +1471,9 @@ namespace CodexRecoveryCenter
                 moreMenu.Show(moreButton, new Point(0, moreButton.Height));
             };
             repairButton.Click += async (s, e) => await RepairSelectedAsync();
-            backupDashboardButton.Click += (s, e) => OpenBackupDashboard();
             openClawStartButton.Click += async (s, e) => await RunOpenClawActionAsync("Start", null, "正在启动小龙虾…");
             openClawRestartButton.Click += async (s, e) => await RunOpenClawActionAsync("Restart", null, "正在重启小龙虾网关…");
-            openClawDashboardButton.Click += async (s, e) => await RunOpenClawActionAsync("Dashboard", null, "正在打开小龙虾控制网页…");
+            openClawDashboardButton.Click += async (s, e) => await ShowOpenClawDashboardPageAsync();
             openClawSwitchButton.Click += async (s, e) =>
             {
                 string model = Convert.ToString(openClawModelsBox.SelectedItem);
@@ -1542,12 +1549,20 @@ namespace CodexRecoveryCenter
         private void ClearEmbeddedPage()
         {
             embeddedPageHost.Visible = false;
-            while (embeddedPageHost.Controls.Count > 0)
+            Control[] persistentPages = new Control[] { backupDashboardPage, openClawDashboardPage };
+            for (int index = embeddedPageHost.Controls.Count - 1; index >= 0; index--)
             {
-                Control child = embeddedPageHost.Controls[0];
-                embeddedPageHost.Controls.RemoveAt(0);
+                Control child = embeddedPageHost.Controls[index];
+                embeddedPageHost.Controls.RemoveAt(index);
+                if (persistentPages.Contains(child))
+                {
+                    child.Visible = false;
+                    continue;
+                }
                 child.Dispose();
             }
+            foreach (Control page in persistentPages)
+                embeddedPageHost.Controls.Add(page);
             SetCoreContentVisible(true);
         }
 
@@ -1559,7 +1574,6 @@ namespace CodexRecoveryCenter
             {
                 progress.Visible = false;
                 openClawActions.Visible = false;
-                backupActions.Visible = false;
                 repairButton.Visible = false;
                 return;
             }
@@ -1572,6 +1586,41 @@ namespace CodexRecoveryCenter
                 entry.Value.VisualRole = entry.Key == id ? ButtonVisualRole.Secondary : ButtonVisualRole.Ghost;
             if (id == "quick-tools") ShowQuickToolsPage();
             else if (id == "settings") ShowSettingsPage();
+        }
+
+        private async Task ShowBackupDashboardPageAsync()
+        {
+            int version = navigationVersion;
+            ClearEmbeddedPage();
+            if (!IsBackupSelection(version)) return;
+            SetCoreContentVisible(false);
+            embeddedPageHost.Visible = true;
+            embeddedPageHost.BringToFront();
+            backupDashboardPage.Visible = true;
+            backupDashboardPage.BringToFront();
+            await backupDashboardPage.LoadDashboardAsync();
+            if (!IsBackupSelection(version))
+                backupDashboardPage.Visible = false;
+        }
+
+        private async Task ShowOpenClawDashboardPageAsync()
+        {
+            int version = navigationVersion;
+            ClearEmbeddedPage();
+            if (selectedModule == null || selectedModule.Id != "openclaw" || version != navigationVersion) return;
+            SetCoreContentVisible(false);
+            embeddedPageHost.Visible = true;
+            embeddedPageHost.BringToFront();
+            openClawDashboardPage.Visible = true;
+            openClawDashboardPage.BringToFront();
+            await openClawDashboardPage.LoadDashboardAsync();
+            if (selectedModule == null || selectedModule.Id != "openclaw" || version != navigationVersion)
+                openClawDashboardPage.Visible = false;
+        }
+
+        private bool IsBackupSelection(int version)
+        {
+            return version == navigationVersion && selectedModule != null && selectedModule.Id == "backup" && !IsDisposed;
         }
 
         private async Task CheckUpdatesAsync()
@@ -1640,9 +1689,15 @@ namespace CodexRecoveryCenter
         {
             ClearEmbeddedPage();
             selectedModule = module;
+            navigationVersion++;
             bool isOpenClaw = module.Id == "openclaw";
             foreach (KeyValuePair<string, SoftButton> entry in moduleButtons)
                 entry.Value.VisualRole = entry.Key == module.Id ? ButtonVisualRole.Secondary : ButtonVisualRole.Ghost;
+            if (module.Id == "backup")
+            {
+                if (IsHandleCreated) BeginInvoke((Action)(async () => await ShowBackupDashboardPageAsync()));
+                return;
+            }
             if (module.Id == overviewModule.Id)
             {
                 RenderOverview();
@@ -1909,40 +1964,13 @@ namespace CodexRecoveryCenter
         private void UpdateActionVisibility()
         {
             bool isOpenClaw = selectedModule != null && selectedModule.Id == "openclaw";
-            bool isBackup = selectedModule != null && selectedModule.Id == "backup";
             RepairFinding finding;
             bool canRepair = !isOpenClaw && selectedModule != null &&
                 selectedModule.Id != overviewModule.Id &&
                 findings.TryGetValue(selectedModule.Id, out finding) && finding.CanRepair;
             openClawActions.Visible = isOpenClaw && OpenClawController.IsAvailable;
-            backupActions.Visible = isBackup;
             repairButton.Visible = canRepair;
             repairButton.Enabled = canRepair && !busy;
-        }
-
-        private void OpenBackupDashboard()
-        {
-            try
-            {
-                HttpWebRequest request = (HttpWebRequest)WebRequest.Create(BackupMonitorPaths.DashboardUrl);
-                request.Method = "GET";
-                request.Timeout = 1200;
-                using (HttpWebResponse response = (HttpWebResponse)request.GetResponse()) { }
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = BackupMonitorPaths.DashboardUrl,
-                    UseShellExecute = true
-                });
-            }
-            catch
-            {
-                MessageBox.Show(
-                    this,
-                    "详细监控台服务当前没有响应。\n\n请先运行备份面板目录中的 open-backup-dashboard.ps1，再从这里打开。\n\n修复中心内置的备份摘要仍然可以正常读取。",
-                    "备份监控台",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Information);
-            }
         }
 
         private void RefreshMoreMenuState()

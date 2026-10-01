@@ -16,7 +16,7 @@ namespace CodexRecoveryCenter
     internal static class ProductInfo
     {
         public const string ProductName = "个人聚合工具箱";
-        public const string Version = "2.10.0";
+        public const string Version = "2.12.0";
         public const string RepositoryUrl = "https://github.com/zwmopen/codex-recovery-center";
         public const string ReleasesUrl = RepositoryUrl + "/releases";
         public const string UpdateManifestUrl =

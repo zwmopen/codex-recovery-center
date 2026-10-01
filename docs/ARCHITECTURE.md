@@ -16,7 +16,8 @@ WindowsRepairCenterForm / PersonalToolboxShell
   ├─ PerformanceRepairModule：内存、临时文件、开发进程白名单与资源守卫
   ├─ StartupRepairModule：启动项、桌面入口、备份与迁移记录
   ├─ BackupMonitorModule：技能库、专属配置和 WebDAV 增量同步只读状态
-├─ OpenClawRepairModule：小龙虾状态读取和统一控制区（控制网页由系统浏览器打开）
+  ├─ EmbeddedBackupDashboard：原样嵌入 8766 监控台的统一网页宿主
+├─ OpenClawRepairModule：小龙虾状态读取和统一控制区（控制网页内嵌右侧工作区）
   └─ BuiltInToolbox：运行期模块注册、内置工具清单与命令行自检入口
 ```
 
@@ -65,6 +66,7 @@ WinForms GUI
 - 统一修复外壳与模块：`src\WindowsRepairCenter.cs`（概览、Codex、蓝牙、鼠标语音、弹窗审计、网络、存储、资源、启动项和小龙虾）
 - 小龙虾控制适配：`src\OpenClawController.cs`
 - 备份状态模块：`src\BackupMonitorModule.cs`（只读读取本地 `sync-state.json`）
+- 备份网页宿主：`src\EmbeddedBackupDashboard.cs`（WebView2、状态服务检查和自动启动）
 - 资源守卫与计划任务：`src\ResourceGuard.cs`
 - 主界面与日志窗口：`src\MainForm.cs`
 - 设置、主题、关于与更新：`src\ProductExperience.cs`
@@ -93,3 +95,11 @@ WinForms GUI
 发布版不会把 PowerShell/VBS 当作修复引擎依赖；它们只用于源码改动后的开发热更新和构建。可用 `Windows-Repair-Center.exe --toolbox-manifest <输出路径>` 导出当前 EXE 的内置工具清单。
 
 更新服务不需要 GitHub Token。它读取最新 GitHub Release 随附的 `manifest.json`，下载同版本 EXE 并核对 SHA-256；校验通过后仍由用户决定是否替换当前 EXE。
+
+---
+
+## 📝 变更记录
+
+| 日期 (时间) | 执行者 | 记录 |
+|---|---|---|
+| 2026-09-17 23:11 | 💻 本地 PC / 反重力 | 初始化创建文档并补齐变更记录历史 |

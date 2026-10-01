@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Text;
 
 namespace CodexRecoveryCenter
@@ -10,6 +11,7 @@ namespace CodexRecoveryCenter
     {
         public const string ManagerPath =
             @"D:\AICode\AI\infrastructure\launchers\manage-openclaw.ps1";
+        public const string DashboardUrl = "http://127.0.0.1:18789/";
 
         public static bool IsAvailable
         {
@@ -50,6 +52,29 @@ namespace CodexRecoveryCenter
                 Model = model,
                 Result = result
             };
+        }
+
+        public static bool EnsureDashboardAvailable()
+        {
+            if (ProbeDashboard()) return true;
+            CommandResult result = Run("Start", null, 240000);
+            return result != null && result.ExitCode == 0 && ProbeDashboard();
+        }
+
+        private static bool ProbeDashboard()
+        {
+            try
+            {
+                HttpWebRequest request = (HttpWebRequest)WebRequest.Create(DashboardUrl);
+                request.Method = "GET";
+                request.Timeout = 1200;
+                using (HttpWebResponse response = (HttpWebResponse)request.GetResponse())
+                    return (int)response.StatusCode >= 200 && (int)response.StatusCode < 300;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         public static List<string> GetModels(out CommandResult result)

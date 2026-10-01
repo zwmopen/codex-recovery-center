@@ -12,6 +12,7 @@ namespace CodexRecoveryCenter
         public const string StatePath = @"D:\AICode\运行数据\business-skill-agent\sync-state.json";
         public const string ConfigPath = @"D:\AICode\AI\config\backup_config.json";
         public const string DashboardUrl = "http://127.0.0.1:8766/";
+        public const string DashboardDirectory = @"D:\AICode\AI\可视化系统\备份面板";
     }
 
     /// <summary>

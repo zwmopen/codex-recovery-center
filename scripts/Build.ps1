@@ -11,6 +11,11 @@ $versionedRelease = Join-Path $projectRoot ("releases\Windows-Repair-Center-v{0}
 $stagedRelease = Join-Path $build ("Windows-Repair-Center-staged-{0}-{1}.exe" -f $version, ([Guid]::NewGuid().ToString('N')))
 $pendingRelease = Join-Path $build 'Windows-Repair-Center.pending.exe'
 $manifestPath = Join-Path $projectRoot 'releases\manifest.json'
+$webView2Version = '1.0.3650.58'
+$webView2Vendor = Join-Path $projectRoot ("third-party\webview2\{0}" -f $webView2Version)
+$webView2Core = Join-Path $webView2Vendor 'Microsoft.Web.WebView2.Core.dll'
+$webView2WinForms = Join-Path $webView2Vendor 'Microsoft.Web.WebView2.WinForms.dll'
+$webView2Loader = Join-Path $webView2Vendor 'WebView2Loader.dll'
 $compiler = 'C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 $icon = Join-Path $build 'Windows-Repair-Center.ico'
 $manifest = Join-Path $projectRoot 'assets\app.manifest'
@@ -18,13 +23,18 @@ $manifest = Join-Path $projectRoot 'assets\app.manifest'
 if (-not (Test-Path -LiteralPath $compiler)) {
     throw "C# compiler not found: $compiler"
 }
+foreach ($dependency in @($webView2Core, $webView2WinForms, $webView2Loader)) {
+    if (-not (Test-Path -LiteralPath $dependency)) {
+        throw "WebView2 dependency not found: $dependency"
+    }
+}
 
 New-Item -ItemType Directory -Path $build -Force | Out-Null
 & (Join-Path $PSScriptRoot 'GenerateIcon.ps1') -OutputPath $icon
 & $compiler /nologo /target:winexe /optimize+ /platform:x64 `
     /reference:System.dll /reference:System.Core.dll /reference:System.Drawing.dll `
     /reference:System.Windows.Forms.dll /reference:System.Web.Extensions.dll `
-    /reference:System.Management.dll `
+    /reference:System.Management.dll /reference:$webView2Core /reference:$webView2WinForms `
     /win32icon:$icon /win32manifest:$manifest `
     /out:$stagedRelease $sources
 if ($LASTEXITCODE -ne 0) {
@@ -32,12 +42,18 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Copy-Item -LiteralPath $stagedRelease -Destination $versionedRelease -Force
+Copy-Item -LiteralPath $webView2Core -Destination (Join-Path (Split-Path $versionedRelease) (Split-Path $webView2Core -Leaf)) -Force
+Copy-Item -LiteralPath $webView2WinForms -Destination (Join-Path (Split-Path $versionedRelease) (Split-Path $webView2WinForms -Leaf)) -Force
+Copy-Item -LiteralPath $webView2Loader -Destination (Join-Path (Split-Path $versionedRelease) (Split-Path $webView2Loader -Leaf)) -Force
 $releaseUpdated = $true
 try {
     # The currently running EXE can be locked by Windows.  Never stop the user's
     # window just to publish a source edit; leave a pending binary for the next
     # launcher run instead.
     Copy-Item -LiteralPath $stagedRelease -Destination $release -Force
+    Copy-Item -LiteralPath $webView2Core -Destination (Join-Path (Split-Path $release) (Split-Path $webView2Core -Leaf)) -Force
+    Copy-Item -LiteralPath $webView2WinForms -Destination (Join-Path (Split-Path $release) (Split-Path $webView2WinForms -Leaf)) -Force
+    Copy-Item -LiteralPath $webView2Loader -Destination (Join-Path (Split-Path $release) (Split-Path $webView2Loader -Leaf)) -Force
     Remove-Item -LiteralPath $pendingRelease -Force -ErrorAction SilentlyContinue
 }
 catch {
@@ -55,12 +71,21 @@ $dirty = (& git -C $projectRoot status --porcelain 2>$null)
 if (-not [String]::IsNullOrWhiteSpace(($dirty -join "`n"))) {
     $sourceCommit = 'uncommitted'
 }
+$runtimeFiles = @($webView2Core, $webView2WinForms, $webView2Loader) | ForEach-Object {
+    [ordered]@{
+        file = Split-Path -Leaf $_
+        sha256 = (Get-FileHash -LiteralPath $_ -Algorithm SHA256).Hash
+        bytes = (Get-Item -LiteralPath $_).Length
+    }
+}
 $manifest = [ordered]@{
     project = 'windows-repair-center'
     version = $version
     source_commit = "$sourceCommit".Trim()
     build_date = (Get-Date -Format 'yyyy-MM-dd')
     platform = 'Windows x64 / .NET Framework WinForms'
+    webview2_sdk = $webView2Version
+    webview2_runtime = 'Microsoft Edge WebView2 Runtime（本机已安装时使用）'
     artifacts = @(
         [ordered]@{
             file = Split-Path -Leaf $versionedRelease
@@ -68,11 +93,13 @@ $manifest = [ordered]@{
             bytes = (Get-Item -LiteralPath $versionedRelease).Length
         }
     )
+    runtime_files = $runtimeFiles
     known_limitations = @(
         'Cannot patch third-party GPU or Codex application defects'
         'Microsoft Store restaging depends on Windows App Installer and network availability'
         'Memory relief force-closes the selected programs; unsaved work in them is lost'
         'Resource Guard is a machine-level safety net and does not replace clean process shutdown in each project'
+        'Embedded web tools require the Microsoft Edge WebView2 Runtime and their local status service'
     )
 }
 $manifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $manifestPath -Encoding UTF8
